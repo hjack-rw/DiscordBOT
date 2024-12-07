@@ -1,0 +1,33 @@
+from src.body import bot
+from src.functions import send_webhook, draw_infocard
+from src.variables import local_deploy, server_id, channel_ids, system_embed_color
+from src.views import WelcomeView
+
+from discord.embeds import Embed
+
+
+# SETTINGS 
+test_events = True if local_deploy else False
+#// test_command = True # an overwrite
+
+
+# for testing
+if test_events:
+    channel_ids = {key:channel_ids["testing"] for key in channel_ids}
+
+
+
+# Welcoming event
+@bot.event
+async def on_member_join(new_user):
+    print("Recognised that a member called " + new_user.name + "," + f"{new_user.id}" + " joined")
+
+    server = bot.get_guild(server_id)
+    channel = server.get_channel(channel_ids["welcome"])
+    
+    image = draw_infocard(new_user=new_user, all_members=len([member for member in server.members if not member.bot]))
+
+    embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=system_embed_color)
+    embed.set_image(url="attachment://card.png")    
+    
+    await send_webhook(target_channel=channel, user_name="Prof. Hagrid", user_avatar_url="https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg", content=f"Mention: <@{new_user.id}>", embed=embed, file=image, view=WelcomeView(user=new_user, stickers=server.stickers))
