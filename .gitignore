@@ -1,0 +1,10 @@
+.gitignore
+src/env
+src/__pycache__/__init__.cpython-310.pyc
+src/__pycache__/body.cpython-310.pyc
+src/__pycache__/commands.cpython-310.pyc
+src/__pycache__/events.cpython-310.pyc
+src/__pycache__/functions.cpython-310.pyc
+src/__pycache__/tasks.cpython-310.pyc
+src/__pycache__/variables.cpython-310.pyc
+src/__pycache__/views.cpython-310.pyc
