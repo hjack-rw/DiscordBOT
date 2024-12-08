@@ -12,7 +12,7 @@ import io
 import json
 import time
 
-__all__ = ["send_command", "send_message", "send_webhook", "get_avatar", "draw_infocard"] 
+__all__ = ["send_command", "send_message", "send_webhook", "get_image", "get_avatar", "draw_infocard"] 
 
 
 headers = {"authorization": f"Bot {bot_token}",
@@ -82,6 +82,10 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
         raise ValueError("FAILED TO CREATE WEBHOOK!")
 
 
+def get_image(url):
+    response = session.get(url)
+    return response.content
+
 def get_avatar(user):
     try:
         return user.avatar._url
@@ -90,10 +94,10 @@ def get_avatar(user):
 
 def draw_infocard(new_user, all_members):
     background = Image.open(absolute_path + "image_module/card_template.png")
+    url = get_avatar(user=new_user)
 
     # download avatar
-    response = session.get(get_avatar(new_user))
-    avatar = Image.open(io.BytesIO(response.content))
+    avatar = Image.open(io.BytesIO(get_image(url=url)))
     
 
     # scaling
