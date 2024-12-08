@@ -48,7 +48,7 @@ idx = len(time_trigger["midnight"]["timezone"]) - 1
                       minute=time_trigger["club event"]["minute"], 
                       tzinfo=time_trigger["club event"]["timezone"][0]))
 async def club_event_reminder():
-    print(f'''"Club event" task running... {today}''')
+    print(f'''"Club event" task running... {today}!''')
 
 
 # game midnight reminder:
@@ -56,7 +56,7 @@ async def club_event_reminder():
                       minute=time_trigger["midnight"]["minute"],
                       tzinfo=time_trigger["midnight"]["timezone"][0]))
 async def game_midnight_reminder():
-    print(f'''"Game Midnight" task running... {today}''')
+    print(f'''"Game Midnight" task running... {today}!''')
 
 
 # midnight reminders
@@ -79,7 +79,7 @@ async def midnight_reminder(server):
                       minute=time_trigger["game"]["minute"],
                       tzinfo=time_trigger["game"]["timezone"][0]))
 async def game_reset_reminder():
-    print(f'''"Game Reset" task running... {today}''')
+    print(f'''"Game Reset" task running... {today}!''')
 
 
 # delete message 
