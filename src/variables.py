@@ -16,7 +16,7 @@ channel_ids = {"testing": 1287909744409055272,
                "welcome": 1221838993071538330,
                "leaderboard": 1305540120631447654,
                "leaderboard_side": 1305917108642910258,
-               "announcement": 1222126723902996480,}
+               "announcements": 1222126723902996480,}
 webhook_id = 1310623344122531851
 
 wait_for = 3 # seconds
