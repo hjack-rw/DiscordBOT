@@ -37,10 +37,10 @@ class BOT(commands.Bot):
         
         server = self.get_guild(server_id)
 
-        club_event_reminder.start()
-        game_midnight_reminder.start()
+        club_event_reminder.start(server)
+        game_midnight_reminder.start(server)
         midnight_reminder.start(server)
-        game_reset_reminder.start()
+        game_reset_reminder.start(server)
 
         channel = server.get_channel(channel_ids["welcome"])
 
@@ -51,20 +51,13 @@ class BOT(commands.Bot):
             self.add_view(view=WelcomeView(user=user, stickers=server.stickers), message_id=message.id)
         
         ### TESTS HERE ###
+        if local_deploy:
+            
+            
 
+            pass
         
         ### END ###
 
 
 bot = BOT()
-
-
-import datetime
-import time
-
-def convert_to_unix_time(date: datetime.datetime, mode: str) -> str:
-    # Get a tuple of the date attributes
-    date_tuple = (date.year, date.month, date.day, date.hour, date.minute, date.second)
-
-    # Convert to unix time
-    return f'<t:{int(time.mktime(datetime.datetime(*date_tuple).timetuple()))}:{mode}>'
