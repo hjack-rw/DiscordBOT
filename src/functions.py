@@ -54,8 +54,18 @@ def send_message(target_channel_id, content, message_id=None, stickers=[]):
 
 
 
-async def send_webhook(target_channel, user_name, user_avatar_url, content="", embed=None, file=None, view=None):            
+async def send_webhook(target_channel, user_name, user_avatar_url=None, content="", embed=None, file=None, view=None):            
     payload = {"channel_id":target_channel.id}
+    
+    if user_avatar_url is None:
+        custom_avatars = {"Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypotter/images/8/82/ProfessorDumbledore.jpg",
+                          "Prof. McGonagall": "https://m.natemat.pl/4cccf528bb2fabc88d662c3ac8a519ef,922,0,0,0.png",
+                          "Prof. Hagrid": "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",}
+    
+        try:
+            user_avatar_url = custom_avatars[user_name]
+        except KeyError:
+            user_avatar_url = custom_avatars["Prof. Dumbledore"]
     
     response = session.patch(f"https://discordapp.com/api/webhooks/{webhook_id}", json=payload, headers=headers)
     print(response)
@@ -70,26 +80,6 @@ async def send_webhook(target_channel, user_name, user_avatar_url, content="", e
         return await webhook.send(content=content, username=user_name, avatar_url=user_avatar_url, embed=embed, file=file, view=view, wait=True)
     else:
         raise ValueError("FAILED TO CREATE WEBHOOK!")
-
-
-async def create_server_event(name, start_time, end_time, description, location, target_channel=None):
-        '''The required time format is %Y-%m-%dT%H:%M:%S'''
-        
-        paylaod = {"name": name,
-                   "privacy_level": 2,
-                   "scheduled_start_time": start_time,
-                   "scheduled_end_time": end_time,
-                   "description": description,
-                   "channel_id": target_channel,
-                   "entity_metadata": {"location": location},
-                   "entity_type": 3}
-
-        try:
-            async with session.post(url=f"https://discord.com/api/v9/guilds/{server_id}/scheduled-events", data=json.dumps(paylaod), headers=headers) as response:
-                response.raise_for_status()
-                assert response.status == 200
-        except Exception as error:
-            print(f'EXCEPTION: {error}')
 
 
 def get_avatar(user):
