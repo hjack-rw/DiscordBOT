@@ -9,19 +9,18 @@ from datetime import datetime, time, timedelta, timezone
 import time as time_module
 import pytz
 
-__all__ = ["club_event_reminder", "game_midnight_reminder", "my_midnight_reminder", "game_reset_reminder"] 
+__all__ = ["game_reset_reminder", "club_event_reminder", "game_midnight_reminder", "my_midnight_reminder"] 
 
 
 # SETTINGS 
-test_events = True if local_deploy else False
-#// test_events = True # an overwrite
+test_tasks = True if local_deploy else False
+#// test_tasks = True # an overwrite
 
 
-today = datetime.now(tz=timezone.utc)
-
-time_trigger = {"game":       {"hour": 4,  "minute": 0,  "timezone": [pytz.timezone("Africa/Cairo")]},                                 # UTC+2
-                "midnight":   {"hour": 0,  "minute": 0,  "timezone": [pytz.timezone("Africa/Cairo"), pytz.timezone("Europe/Warsaw")]}, # UTC+2 / UTC+1
-                "club event": {"hour": 19, "minute": 25, "timezone": [timezone.utc]},}                                                 # UTC
+time_trigger = {"game_reset":    time(hour=4,  minute=0,  tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
+                "club event":    time(hour=19, minute=25, tzinfo=timezone.utc),                    # UTC
+                "game_midnight": time(hour=0,  minute=0,  tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
+                "my_midnight":   time(hour=0,  minute=0,  tzinfo=pytz.timezone("Europe/Warsaw")),} # UTC+1
 
 delete_after = {"hours":1, "minutes":5, "seconds":0}
 
@@ -29,35 +28,46 @@ weekday = {0:"Monday", 1:"Thursday",  2:"Wednesday", 3:"Tuesday", 4:"Friday", 5:
 
 
 # for testing
-if test_events:
-    today = datetime.now()
+if test_tasks:
+    now = datetime.now()
     after_minutes = 2
 
-    hour, minute  = (int(value) for value in today.strftime("%H/%M").split("/"))
-    minute = (minute + after_minutes) if minute <= (59 - after_minutes) else (minute + after_minutes) % 60
-    tz = today.astimezone().tzinfo
+    hour, minute  = (int(value) for value in now.strftime("%H/%M").split("/"))
+    
+    if minute <= (59 - after_minutes):
+        minute += after_minutes
+    else:
+        hour += 1
+        minute = (minute + after_minutes) % 60
 
-    time_trigger = {key:{"hour": hour, "minute": minute, "timezone": [tz]} for key in time_trigger}
+    tz = now.astimezone().tzinfo
+
+    time_trigger = {key:time(hour=hour, minute=minute, tzinfo=tz) for key in time_trigger}
     channel_ids = {key:channel_ids["testing"] for key in channel_ids}
     
     delete_after = {"hours":0, "minutes":after_minutes*2, "seconds":0}
     
     del[hour, minute, tz]
 
-idx = len(time_trigger["midnight"]["timezone"]) - 1
+
+
+# game reset reminder:
+@tasks.loop(time=time_trigger["game_reset"])
+async def game_reset_reminder(server):
+    today = datetime.now(tz=timezone.utc)
+    print(f'''"Game Reset" task running... {today}!''')
 
 
 
 # club event reminder:
-@tasks.loop(time=time(hour=time_trigger["club event"]["hour"], 
-                      minute=time_trigger["club event"]["minute"], 
-                      tzinfo=time_trigger["club event"]["timezone"][0]))
+@tasks.loop(time=time_trigger["club event"])
 async def club_event_reminder(server):
+    today = datetime.now(tz=timezone.utc)
     print(f'''"Club event" task running... {today}!''')
 
-    if test_events:
-        end_after = timedelta(minutes=after_minutes*2)
-        date = today + timedelta(minutes=after_minutes)
+    if test_tasks:
+        end_after = timedelta(minutes=after_minutes)
+        date = now + timedelta(minutes=after_minutes*2)
     else:
         end_after = timedelta(hours=1)
         date = today.replace(hour=19, minute=30, second=0)
@@ -98,38 +108,27 @@ async def club_event_reminder(server):
 
 
 # game midnight reminder:
-@tasks.loop(time=time(hour=time_trigger["midnight"]["hour"],
-                      minute=time_trigger["midnight"]["minute"],
-                      tzinfo=time_trigger["midnight"]["timezone"][0]))
+@tasks.loop(time=time_trigger["game_midnight"])
 async def game_midnight_reminder(server):
+    today = datetime.now(tz=timezone.utc)
     print(f'''"Game Midnight" task running... {today}!''')
 
 
 
 # midnight reminders
-@tasks.loop(time=time(hour=time_trigger["midnight"]["hour"],
-                      minute=time_trigger["midnight"]["minute"],
-                      tzinfo=time_trigger["midnight"]["timezone"][idx]))
+@tasks.loop(time=time_trigger["my_midnight"])
 async def my_midnight_reminder(server):
+    today = datetime.now(tz=timezone.utc)
     print(f'''"My Midnight" task running... {today}!''')
 
     # for staff (on sunday)
-    if notify := (test_events or today.weekday() == 6):
+    if notify := (test_tasks or today.weekday() == 6):
         channel = server.get_channel(channel_ids["staffroom"])
         
         message = "<@&1221884134121668648> <@&1221910705318662154> Dear Staff, remember to take a picture of this week's top 3 students!"
         await send_webhook(target_channel=channel, user_name="Prof. Dumbledore", content=message)
 
     print(f"It's {weekday[today.weekday()]}! " + ("Notify!" if notify else "Don't notify!"))
-
-
-
-# game reset reminder:
-@tasks.loop(time=time(hour=time_trigger["game"]["hour"],
-                      minute=time_trigger["game"]["minute"],
-                      tzinfo=time_trigger["game"]["timezone"][0]))
-async def game_reset_reminder(server):
-    print(f'''"Game Reset" task running... {today}!''')
 
 
 
