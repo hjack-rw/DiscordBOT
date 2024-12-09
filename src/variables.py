@@ -11,12 +11,13 @@ __all__ = ["local_deploy", "server_id", "channel_ids", "webhook_id", "wait_for",
 
 local_deploy = False if path == os.getenv("SERVER") else True
 server_id = 1221838993071538327
-channel_ids = {"testing": 1287909744409055272,
-               "headmasters": 1255614086033575977,
-               "welcome": 1221838993071538330,
-               "leaderboard": 1305540120631447654,
+channel_ids = {"welcome": 1221838993071538330,
+               "testing": 1287909744409055272,
                "leaderboard_side": 1305917108642910258,
-               "announcements": 1222126723902996480,}
+               "headmasters": 1255614086033575977,
+               "staffroom": 1283404834804076587,
+               "announcements": 1222126723902996480,
+               "leaderboard": 1305540120631447654,}
 webhook_id = 1310623344122531851
 
 wait_for = 3 # seconds

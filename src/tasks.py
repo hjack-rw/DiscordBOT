@@ -9,7 +9,7 @@ from datetime import datetime, time, timedelta, timezone
 import time as time_module
 import pytz
 
-__all__ = ["club_event_reminder", "game_midnight_reminder", "midnight_reminder", "game_reset_reminder"] 
+__all__ = ["club_event_reminder", "game_midnight_reminder", "my_midnight_reminder", "game_reset_reminder"] 
 
 
 # SETTINGS 
@@ -19,9 +19,9 @@ test_events = True if local_deploy else False
 
 today = datetime.now(tz=timezone.utc)
 
-time_trigger = {"game":       {"hour": 4,  "minute": 0,  "timezone": [pytz.timezone("Africa/Cairo")]},               # UTC+2
-                "midnight":   {"hour": 0,  "minute": 0,  "timezone": [pytz.timezone("Africa/Cairo"), timezone.utc]}, # UTC+2 / UTC
-                "club event": {"hour": 19, "minute": 25, "timezone": [timezone.utc]},}                               # UTC
+time_trigger = {"game":       {"hour": 4,  "minute": 0,  "timezone": [pytz.timezone("Africa/Cairo")]},                                 # UTC+2
+                "midnight":   {"hour": 0,  "minute": 0,  "timezone": [pytz.timezone("Africa/Cairo"), pytz.timezone("Europe/Warsaw")]}, # UTC+2 / UTC+1
+                "club event": {"hour": 19, "minute": 25, "timezone": [timezone.utc]},}                                                 # UTC
 
 delete_after = {"hours":1, "minutes":5, "seconds":0}
 
@@ -45,6 +45,7 @@ if test_events:
     del[hour, minute, tz]
 
 idx = len(time_trigger["midnight"]["timezone"]) - 1
+
 
 
 # club event reminder:
@@ -95,6 +96,7 @@ async def club_event_reminder(server):
     delete_message.start(message)
 
 
+
 # game midnight reminder:
 @tasks.loop(time=time(hour=time_trigger["midnight"]["hour"],
                       minute=time_trigger["midnight"]["minute"],
@@ -103,19 +105,23 @@ async def game_midnight_reminder(server):
     print(f'''"Game Midnight" task running... {today}!''')
 
 
+
 # midnight reminders
 @tasks.loop(time=time(hour=time_trigger["midnight"]["hour"],
                       minute=time_trigger["midnight"]["minute"],
                       tzinfo=time_trigger["midnight"]["timezone"][idx]))
-async def midnight_reminder(server):
-    print(f'''"Midnight" task running... {today}!''')
+async def my_midnight_reminder(server):
+    print(f'''"My Midnight" task running... {today}!''')
 
-    # for headmasters (sunday)
-    if notify := (today.weekday() == 6):
-        message_channel = server.get_channel(channel_ids["headmasters"])
-        await message_channel.send("<@&1221884134121668648> Headmasters, remember to take a picture of this week's top 3 students!")
+    # for staff (on sunday)
+    if notify := (test_events or today.weekday() == 6):
+        channel = server.get_channel(channel_ids["staffroom"])
+        
+        message = "<@&1221884134121668648> <@&1221910705318662154> Dear Staff, remember to take a picture of this week's top 3 students!"
+        await send_webhook(target_channel=channel, user_name="Prof. Dumbledore", content=message)
 
     print(f"It's {weekday[today.weekday()]}! " + ("Notify!" if notify else "Don't notify!"))
+
 
 
 # game reset reminder:
@@ -124,6 +130,7 @@ async def midnight_reminder(server):
                       tzinfo=time_trigger["game"]["timezone"][0]))
 async def game_reset_reminder(server):
     print(f'''"Game Reset" task running... {today}!''')
+
 
 
 # delete message 
