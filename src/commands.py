@@ -69,6 +69,7 @@ def get_user_exp(current_level, percent):
 @bot.tree.command(name="update_lb")
 async def update_leaderboard(interaction: Interaction, mention_all:bool, with_house_cup:bool):
     ''' Updates the Server's Leaderboard '''
+    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
 
     server = bot.get_guild(server_id)
     channel = server.get_channel(channel_ids["leaderboard"])
@@ -76,7 +77,6 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
 
     try:
         send_command(target_channel_id=channel_ids["leaderboard_side"], app_id=1035970092284002384, version=1240001014564913213, id=1035972545276555395, command="rank", options=[{"type":6, "name":"user", "value":385899007991480321},{"type":5, "name":"showoff", "value":False}])
-        await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
 
         # clear all channels
         await channel.purge(limit=None)
@@ -157,12 +157,14 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
             
             all_points = sum([value["points"] for _, value in house_cup.items()], [])
             mean = statistics.mean(all_points)
-            sd = statistics.stdev(all_points)
+            sd = statistics.stdev(all_points) if not test_command else 0
             
             scoreboard = {}
             for key,value in house_cup.items():
-                points = [point for point in value["points"] if (point > mean - 2*sd) and (point < mean + 2*sd)]
-                scoreboard[key] = sum(points) / len(points) / limit(value=value["all_members"], limit=1)
+                points = [point for point in value["points"] if (point >= mean - 2*sd) and (point <= mean + 2*sd)]
+                
+                active_members = len(points) if not test_command else 1
+                scoreboard[key] = sum(points) / active_members / limit(value=value["all_members"], limit=1)
 
             winning_house = max(house_cup, key=scoreboard.get)
             
@@ -177,7 +179,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
         print("done")
     
     except ValueError as error:
-        await interaction.response.send_message("Something went very wrong here... a server restart might be in order!", ephemeral=True)
+        await interaction.channel.send("Something went very wrong here... a server restart might be in order!", delete_after=5)
         print(error)
 
 
