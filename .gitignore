@@ -1,8 +1,10 @@
 .gitignore
 src/env
+src/_database.db-journal
 src/__pycache__/__init__.cpython-310.pyc
 src/__pycache__/body.cpython-310.pyc
 src/__pycache__/commands.cpython-310.pyc
+src/__pycache__/db_classes.cpython-310.pyc
 src/__pycache__/events.cpython-310.pyc
 src/__pycache__/functions.cpython-310.pyc
 src/__pycache__/tasks.cpython-310.pyc

@@ -2,11 +2,12 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 import os
+import sqlite3
 
 path = os.getcwd() + "/src/"
 load_dotenv(dotenv_path=Path(path + "env"))
 
-__all__ = ["local_deploy", "server_id", "webhook_id", "channel_ids", "custom_avatars", "wait_for", "absolute_path", "discord_token", "bot_token", "system_embed_color"] 
+__all__ = ["local_deploy", "server_id", "webhook_id", "channel_ids", "custom_avatars", "wait_for", "absolute_path", "discord_token", "bot_token", "system_embed_color", "db_connection", "db_cursor"] 
 
 
 local_deploy = False if path == os.getenv("SERVER") else True
@@ -30,3 +31,15 @@ absolute_path = path
 discord_token = os.getenv("DISCORD_TOKEN")
 bot_token = os.getenv("DISCORD_BOT_TOKEN")
 system_embed_color = 16777215
+
+
+def connect_db():
+    try:
+        db = sqlite3.connect(path + '_database.db')
+    except sqlite3.Error as error:
+        print(error)
+    finally:
+        return db, db.cursor()
+    
+
+db_connection, db_cursor = connect_db()
