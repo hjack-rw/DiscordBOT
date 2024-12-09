@@ -60,7 +60,7 @@ async def club_event_reminder(server):
         date = today + timedelta(minutes=after_minutes)
     else:
         end_after = timedelta(hours=1)
-        date = today.replace(hour=20, minute=30, second=0)
+        date = today.replace(hour=19, minute=30, second=0)
     
     unix_time_timer = convert_to_unix_time(date=date, mode="R")
     unix_time_hour = convert_to_unix_time(date=date, mode="t")
