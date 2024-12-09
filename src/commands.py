@@ -1,9 +1,10 @@
 from src.body import bot
 from src.functions import send_command, send_webhook, get_avatar
-from src.variables import local_deploy, server_id, channel_ids, system_embed_color
+from src.variables import local_deploy, server_id, channel_ids, custom_avatars, system_embed_color
 
 import re
 import statistics
+from typing import Optional, Literal
 
 import discord
 
@@ -179,18 +180,32 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
         print("done")
     
     except ValueError as error:
-        await interaction.channel.send("Something went very wrong here... a server restart might be in order!", delete_after=5)
+        await interaction.channel.send("Something went very wrong here... a server restart might be in order!", delete_after=10)
         print(error)
-
+    
+    except IndexError as error:
+        await interaction.channel.send("Something went very wrong here... check the Experienced source leaderboard!", delete_after=10)
+        print(error)
 
 
 # Webhook functionality
 @bot.tree.command(name="polyjuice")
-async def send_as(interaction: Interaction, member:discord.Member, say:str):
+async def send_as(interaction: Interaction, member: Optional[discord.Member], option: Optional[Literal[tuple(custom_avatars.keys())]], say:str):
     ''' Send message as user '''
-    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+    if not member and not option:
+        await interaction.response.send_message("Pick a member or an option!", ephemeral=True)
 
-    try:
-        await send_webhook(target_channel=interaction.channel, user_name=member.nick, user_avatar_url=get_avatar(member), content=say)
-    except ValueError as error:
-        print(error)
+    else:
+        await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+
+        if member:
+            user_name = member.nick
+            user_avatar_url = get_avatar(member)
+        else:
+            user_name = option
+            user_avatar_url = None
+
+        try:
+            await send_webhook(target_channel=interaction.channel, user_name=user_name, user_avatar_url=user_avatar_url, content=say)
+        except ValueError as error:
+            print(error)

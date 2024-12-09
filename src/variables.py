@@ -6,11 +6,13 @@ import os
 path = os.getcwd() + "/src/"
 load_dotenv(dotenv_path=Path(path + "env"))
 
-__all__ = ["local_deploy", "server_id", "channel_ids", "webhook_id", "wait_for", "absolute_path", "discord_token", "bot_token", "system_embed_color"] 
+__all__ = ["local_deploy", "server_id", "webhook_id", "channel_ids", "custom_avatars", "wait_for", "absolute_path", "discord_token", "bot_token", "system_embed_color"] 
 
 
 local_deploy = False if path == os.getenv("SERVER") else True
 server_id = 1221838993071538327
+webhook_id = 1310623344122531851
+
 channel_ids = {"welcome": 1221838993071538330,
                "testing": 1287909744409055272,
                "leaderboard_side": 1305917108642910258,
@@ -18,7 +20,10 @@ channel_ids = {"welcome": 1221838993071538330,
                "staffroom": 1283404834804076587,
                "announcements": 1222126723902996480,
                "leaderboard": 1305540120631447654,}
-webhook_id = 1310623344122531851
+
+custom_avatars = {"Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypotter/images/8/82/ProfessorDumbledore.jpg",
+                  "Prof. McGonagall": "https://m.natemat.pl/4cccf528bb2fabc88d662c3ac8a519ef,922,0,0,0.png",
+                  "Prof. Hagrid": "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",}
 
 wait_for = 3 # seconds
 absolute_path = path
