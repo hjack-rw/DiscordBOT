@@ -85,7 +85,7 @@ async def club_event_reminder(server):
     
     # create notification message
     embed = Embed(color=system_embed_color, title=event_info["title"], description=event_info["description"])
-    embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=f"Reminder: {weekday[date.weekday()]}!")
+    embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=f"Reminder: {weekday[date.weekday()]} Club Events!")
     embed.add_field(name="Location", value=event_info["location"], inline=False)
     embed.add_field(name="Scheduled for", value=f"{unix_time_hour}", inline=True)
     embed.add_field(name="Duration", value="~1 hour", inline=True)
