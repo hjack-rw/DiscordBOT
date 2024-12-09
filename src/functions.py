@@ -1,4 +1,4 @@
-from src.variables import server_id, webhook_id, wait_for, absolute_path, discord_token, bot_token
+from src.variables import server_id, webhook_id, custom_avatars, wait_for, absolute_path, discord_token, bot_token
 
 from discord.file import File
 from discord.utils import MISSING
@@ -58,10 +58,6 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
     payload = {"channel_id":target_channel.id}
     
     if user_avatar_url is None:
-        custom_avatars = {"Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypotter/images/8/82/ProfessorDumbledore.jpg",
-                          "Prof. McGonagall": "https://m.natemat.pl/4cccf528bb2fabc88d662c3ac8a519ef,922,0,0,0.png",
-                          "Prof. Hagrid": "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",}
-    
         try:
             user_avatar_url = custom_avatars[user_name]
         except KeyError:
