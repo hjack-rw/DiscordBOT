@@ -1,4 +1,4 @@
-from src.tasks import club_event_reminder, game_reset_reminder, midnight_reminder, game_midnight_reminder
+from src.tasks import club_event_reminder, game_reset_reminder, my_midnight_reminder, game_midnight_reminder
 from src.variables import local_deploy, server_id, channel_ids, webhook_id
 from src.views import WelcomeView
 
@@ -39,7 +39,7 @@ class BOT(commands.Bot):
 
         club_event_reminder.start(server)
         game_midnight_reminder.start(server)
-        midnight_reminder.start(server)
+        my_midnight_reminder.start(server)
         game_reset_reminder.start(server)
 
         channel = server.get_channel(channel_ids["welcome"])
