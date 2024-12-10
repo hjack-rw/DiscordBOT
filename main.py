@@ -4,10 +4,6 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! mcgonagall
-# trigger on event: also a command to turn it of for 24h
-# (if one day falls out it goes to on again)
-
 #TODO! filch:
 # trigger on maintance,
 # if given date add to list
@@ -17,6 +13,11 @@ if __name__ == '__main__':
 
 #TODO! flitwick:
 # trigger on weekly cards
+# create new task
 
-#TODO! portkey fixer: change all portkeys to dumbledoor 
+#TODO! portkey fixer: change all portkeys to dumbledore
+# save forms.app to base and print from base
+
 #TODO! list all members of a house
+
+#TODO! crreate a templates channel
