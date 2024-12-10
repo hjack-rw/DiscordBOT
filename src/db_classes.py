@@ -24,7 +24,7 @@ class ExtraVariables:
         
         # reverse value
         if self.id == 1:
-            self.cur.execute(f"UPDATE extra_variables SET variable_int = {int(not self.value)} WHERE ID = {self.id}")
+            self.cur.execute(f"UPDATE extra_variables SET var_int = {int(not self.value)} WHERE ID = {self.id}")
             self.value = not self.value
         
         self.con.commit()
