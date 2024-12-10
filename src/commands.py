@@ -1,5 +1,5 @@
 from src.body import bot
-from src.db_classes import ExtraVariables
+from src.db_classes import ExtraVariable
 from src.functions import send_command, send_webhook, get_avatar
 from src.variables import local_deploy, server_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
 
@@ -219,7 +219,7 @@ async def send_as(interaction: Interaction, member: Optional[discord.Member], op
 async def postpone_club_event_24h(interaction: Interaction):
     ''' Postpone the next Club Event by 24h '''
     
-    trigger_club_event = ExtraVariables(id=1)
+    trigger_club_event = ExtraVariable(id=1)
 
     if trigger_club_event.value:
         await interaction.response.send_message("The next Club Event will be **skipped**!", ephemeral=True)
@@ -227,4 +227,4 @@ async def postpone_club_event_24h(interaction: Interaction):
         await interaction.response.send_message("The next Club Event will be **restored**!", ephemeral=True)
     
     # change the variable value
-    trigger_club_event.change_value()
+    trigger_club_event.change_value(to=not trigger_club_event.value)
