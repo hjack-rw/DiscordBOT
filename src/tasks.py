@@ -1,3 +1,4 @@
+from src.db_classes import ExtraVariables
 from src.functions import send_webhook, get_image
 from src.variables import local_deploy, channel_ids, system_embed_color
 
@@ -62,48 +63,54 @@ async def game_reset_reminder(server):
 # club event reminder:
 @tasks.loop(time=time_trigger["club event"])
 async def club_event_reminder(server):
-    today = datetime.now(tz=timezone.utc)
-    print(f'''"Club event" task running... {today}!''')
+    trigger_club_event = ExtraVariables(id=1)
 
-    if test_tasks:
-        end_after = timedelta(minutes=after_minutes)
-        date = now + timedelta(minutes=after_minutes*2)
+    if trigger_club_event.value:
+        today = datetime.now(tz=timezone.utc)
+        print(f'''"Club event" task running... {today}!''')
+
+        if test_tasks:
+            end_after = timedelta(minutes=after_minutes)
+            date = now + timedelta(minutes=after_minutes*2)
+        else:
+            end_after = timedelta(hours=1)
+            date = today.replace(hour=19, minute=30, second=0)
+        
+        unix_time_timer = convert_to_unix_time(date=date, mode="R")
+        unix_time_hour = convert_to_unix_time(date=date, mode="t")
+
+        event_info = {"title": "GOP Club Events!",
+                    "description": f"**We start {unix_time_timer}!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance Event!",
+                    "location": "HP: Magic Awakened  (Sphinx)"}
+        
+        url = "https://media.discordapp.net/attachments/1255614086033575977/1315444388515807292/template.png?ex=6758c00d&is=67576e8d&hm=66b2dd89830034dd32533d6ea877b4dc9b4d8e779247fd7d26d7594520d65951&=&format=webp&quality=lossless&width=1427&height=571"
+
+
+        # create event
+        await server.create_scheduled_event(name=event_info["title"],
+                                            start_time=date.astimezone(),
+                                            end_time=(date + end_after).astimezone(),
+                                            description=event_info["description"],
+                                            location=event_info["location"],
+                                            privacy_level=PrivacyLevel.guild_only,
+                                            entity_type=EntityType.external,
+                                            image=get_image(url=url))
+        
+        
+        # create notification message
+        embed = Embed(color=system_embed_color, title=event_info["title"], description=event_info["description"])
+        embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=f"Reminder: {weekday[date.weekday()]} Club Events!")
+        embed.add_field(name="Location", value=event_info["location"], inline=False)
+        embed.add_field(name="Scheduled for", value=f"{unix_time_hour}", inline=True)
+        embed.add_field(name="Duration", value="~1 hour", inline=True)
+
+
+        channel = server.get_channel(channel_ids["announcements"])
+        message = await send_webhook(target_channel=channel, user_name="Prof. McGonagall", content="<@&1278844289694171260>", embed=embed)
+        delete_message.start(message)
+    
     else:
-        end_after = timedelta(hours=1)
-        date = today.replace(hour=19, minute=30, second=0)
-    
-    unix_time_timer = convert_to_unix_time(date=date, mode="R")
-    unix_time_hour = convert_to_unix_time(date=date, mode="t")
-
-    event_info = {"title": "GOP Club Events!",
-                  "description": f"**We start {unix_time_timer}!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance Event!",
-                  "location": "HP: Magic Awakened  (Sphinx)"}
-    
-    url = "https://media.discordapp.net/attachments/1255614086033575977/1315444388515807292/template.png?ex=67576e8d&is=67561d0d&hm=ffffd3224bb60b5c3681c2017a43dc51238e3e30bafed9f4ad091977895be2d2"
-
-
-    # create event
-    await server.create_scheduled_event(name=event_info["title"],
-                                        start_time=date.astimezone(),
-                                        end_time=(date + end_after).astimezone(),
-                                        description=event_info["description"],
-                                        location=event_info["location"],
-                                        privacy_level=PrivacyLevel.guild_only,
-                                        entity_type=EntityType.external,
-                                        image=get_image(url=url))
-    
-    
-    # create notification message
-    embed = Embed(color=system_embed_color, title=event_info["title"], description=event_info["description"])
-    embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=f"Reminder: {weekday[date.weekday()]} Club Events!")
-    embed.add_field(name="Location", value=event_info["location"], inline=False)
-    embed.add_field(name="Scheduled for", value=f"{unix_time_hour}", inline=True)
-    embed.add_field(name="Duration", value="~1 hour", inline=True)
-
-
-    channel = server.get_channel(channel_ids["announcements"])
-    message = await send_webhook(target_channel=channel, user_name="Prof. McGonagall", content="<@&1278844289694171260>", embed=embed)
-    delete_message.start(message)
+        trigger_club_event.change_value()
 
 
 
