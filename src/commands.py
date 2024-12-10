@@ -1,4 +1,5 @@
 from src.body import bot
+from src.db_classes import ExtraVariables
 from src.functions import send_command, send_webhook, get_avatar
 from src.variables import local_deploy, server_id, channel_ids, custom_avatars, system_embed_color
 
@@ -70,6 +71,7 @@ def get_user_exp(current_level, percent):
 @bot.tree.command(name="update_lb")
 async def update_leaderboard(interaction: Interaction, mention_all:bool, with_house_cup:bool):
     ''' Updates the Server's Leaderboard '''
+    
     await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
 
     server = bot.get_guild(server_id)
@@ -190,8 +192,9 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
 
 # Webhook functionality
 @bot.tree.command(name="polyjuice")
-async def send_as(interaction: Interaction, member: Optional[discord.Member], option: Optional[Literal[tuple(custom_avatars.keys())]], say:str):
+async def send_as(interaction: Interaction, member: Optional[discord.Member], option: Optional[Literal[tuple(custom_avatars.keys())]], say:str): # type: ignore
     ''' Send message as user '''
+    
     if not member and not option:
         await interaction.response.send_message("Pick a member or an option!", ephemeral=True)
 
@@ -209,3 +212,19 @@ async def send_as(interaction: Interaction, member: Optional[discord.Member], op
             await send_webhook(target_channel=interaction.channel, user_name=user_name, user_avatar_url=user_avatar_url, content=say)
         except ValueError as error:
             print(error)
+
+
+# Event handling functionality
+@bot.tree.command(name="postpone")
+async def postpone_club_event_24h(interaction: Interaction):
+    ''' Postpone the next Club Event by 24h '''
+    
+    trigger_club_event = ExtraVariables(id=1)
+
+    if trigger_club_event.value:
+        await interaction.response.send_message("The next Club Event will be **skipped**!", ephemeral=True)
+    else:
+        await interaction.response.send_message("The next Club Event will be **restored**!", ephemeral=True)
+    
+    # change the variable value
+    trigger_club_event.change_value()
