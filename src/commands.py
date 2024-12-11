@@ -1,7 +1,7 @@
 from src.body import bot
 from src.db_classes import ExtraVariables
 from src.functions import send_command, send_webhook, get_avatar
-from src.variables import local_deploy, server_id, channel_ids, custom_avatars, system_embed_color
+from src.variables import local_deploy, server_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
 
 import re
 import statistics
@@ -20,7 +20,7 @@ test_command = True if local_deploy else False
 
 # for testing
 if test_command:
-    channel_ids = {key:channel_ids["testing"] for key in channel_ids}
+    channel_ids = channel_ids_test
 
 
 # Complete list at:

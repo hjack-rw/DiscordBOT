@@ -1,6 +1,6 @@
 from src.db_classes import ExtraVariables
 from src.functions import send_webhook, get_image
-from src.variables import local_deploy, channel_ids, system_embed_color
+from src.variables import local_deploy, channel_ids, channel_ids_test, system_embed_color
 
 from discord.embeds import Embed
 from discord.enums import EntityType, PrivacyLevel
@@ -44,7 +44,7 @@ if test_tasks:
     tz = now.astimezone().tzinfo
 
     time_trigger = {key:time(hour=hour, minute=minute, tzinfo=tz) for key in time_trigger}
-    channel_ids = {key:channel_ids["testing"] for key in channel_ids}
+    channel_ids = channel_ids_test
     
     delete_after = {"hours":0, "minutes":after_minutes*2, "seconds":0}
     
@@ -80,21 +80,25 @@ async def club_event_reminder(server):
         unix_time_hour = convert_to_unix_time(date=date, mode="t")
 
         event_info = {"title": "GOP Club Events!",
-                    "description": f"**We start {unix_time_timer}!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance Event!",
-                    "location": "HP: Magic Awakened  (Sphinx)"}
+                      "description": f"**We start {unix_time_timer}!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance Event!",
+                      "location": "HP: Magic Awakened  (Sphinx)"}
         
-        url = "https://media.discordapp.net/attachments/1255614086033575977/1315444388515807292/template.png?ex=6758c00d&is=67576e8d&hm=66b2dd89830034dd32533d6ea877b4dc9b4d8e779247fd7d26d7594520d65951&=&format=webp&quality=lossless&width=1427&height=571"
-
+        # get image
+        channel = server.get_channel(channel_ids["assets"])
+        message = [message async for message in channel.history(limit=None) if message.content == "event_image"][0]
 
         # create event
-        await server.create_scheduled_event(name=event_info["title"],
-                                            start_time=date.astimezone(),
-                                            end_time=(date + end_after).astimezone(),
-                                            description=event_info["description"],
-                                            location=event_info["location"],
-                                            privacy_level=PrivacyLevel.guild_only,
-                                            entity_type=EntityType.external,
-                                            image=get_image(url=url))
+        try:
+            await server.create_scheduled_event(name=event_info["title"],
+                                                start_time=date.astimezone(),
+                                                end_time=(date + end_after).astimezone(),
+                                                description=event_info["description"],
+                                                location=event_info["location"],
+                                                privacy_level=PrivacyLevel.guild_only,
+                                                entity_type=EntityType.external,
+                                                image=get_image(url=message.attachments[0]))
+        except ValueError:
+            print("Could not create event!")
         
         
         # create notification message

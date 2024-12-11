@@ -1,6 +1,6 @@
 from src.body import bot
 from src.functions import send_webhook, draw_infocard
-from src.variables import local_deploy, server_id, channel_ids, system_embed_color
+from src.variables import local_deploy, server_id, channel_ids, channel_ids_test, system_embed_color
 from src.views import WelcomeView
 
 from discord.embeds import Embed
@@ -13,7 +13,7 @@ test_events = True if local_deploy else False
 
 # for testing
 if test_events:
-    channel_ids = {key:channel_ids["testing"] for key in channel_ids}
+    channel_ids = channel_ids_test
 
 
 

@@ -1,5 +1,5 @@
 from src.functions import send_message
-from src.variables import channel_ids, local_deploy
+from src.variables import channel_ids, channel_ids_test, local_deploy
 
 from discord.enums import ButtonStyle
 from discord.interactions import Interaction
@@ -19,7 +19,7 @@ test_views = True if local_deploy else False
 
 # for testing
 if test_views:
-    channel_ids = {key:channel_ids["testing"] for key in channel_ids}
+    channel_ids = channel_ids_test
 
 
 
