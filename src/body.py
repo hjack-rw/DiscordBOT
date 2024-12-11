@@ -1,5 +1,5 @@
 from src.tasks import club_event_reminder, game_reset_reminder, my_midnight_reminder, game_midnight_reminder
-from src.variables import local_deploy, server_id, channel_ids, webhook_id
+from src.variables import local_deploy, server_id, channel_ids, channel_ids_test, webhook_id
 from src.views import WelcomeView
 
 import re
@@ -15,7 +15,7 @@ test = True if local_deploy else False
 
 # for testing
 if test:
-    channel_ids = {key:channel_ids["testing"] for key in channel_ids}
+    channel_ids = channel_ids_test
 
 
 
@@ -44,6 +44,7 @@ class BOT(commands.Bot):
 
         channel = server.get_channel(channel_ids["welcome"])
 
+        #TODO: save the ids in db to not loop over channel
         for message in [message async for message in channel.history(limit=None) if message.author.id == webhook_id and message.components][::-1]:
             user_id = re.sub(pattern=r'''\D+''', repl="", string=message.content)
             user = server.get_member(int(user_id))
