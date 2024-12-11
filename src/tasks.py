@@ -83,8 +83,10 @@ async def club_event_reminder(server):
                     "description": f"**We start {unix_time_timer}!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance Event!",
                     "location": "HP: Magic Awakened  (Sphinx)"}
         
-        url = "https://media.discordapp.net/attachments/1255614086033575977/1315444388515807292/template.png?ex=6758c00d&is=67576e8d&hm=66b2dd89830034dd32533d6ea877b4dc9b4d8e779247fd7d26d7594520d65951&=&format=webp&quality=lossless&width=1427&height=571"
-
+        # TODO! change for templates channel
+        # get image
+        channel = server.get_channel(channel_ids["headmasters"]) if not test_tasks else server.get_channel(1255614086033575977)
+        message = await channel.fetch_message(1315444388918198272)
 
         # create event
         await server.create_scheduled_event(name=event_info["title"],
@@ -94,7 +96,7 @@ async def club_event_reminder(server):
                                             location=event_info["location"],
                                             privacy_level=PrivacyLevel.guild_only,
                                             entity_type=EntityType.external,
-                                            image=get_image(url=url))
+                                            image=get_image(url=message.attachments[0].url))
         
         
         # create notification message
