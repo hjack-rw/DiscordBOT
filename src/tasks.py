@@ -1,4 +1,4 @@
-from src.db_classes import ExtraVariables
+from src.db_classes import ExtraVariable
 from src.functions import send_webhook, get_image
 from src.variables import local_deploy, channel_ids, channel_ids_test, system_embed_color
 
@@ -63,7 +63,7 @@ async def game_reset_reminder(server):
 # club event reminder:
 @tasks.loop(time=time_trigger["club event"])
 async def club_event_reminder(server):
-    trigger_club_event = ExtraVariables(id=1)
+    trigger_club_event = ExtraVariable(id=1)
 
     if trigger_club_event.value:
         today = datetime.now(tz=timezone.utc)

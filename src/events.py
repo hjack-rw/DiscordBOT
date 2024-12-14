@@ -1,4 +1,5 @@
 from src.body import bot
+from src.db_classes import WelcomeMessages
 from src.functions import send_webhook, draw_infocard
 from src.variables import local_deploy, server_id, channel_ids, channel_ids_test, system_embed_color
 from src.views import WelcomeView
@@ -30,4 +31,5 @@ async def on_member_join(new_user):
     embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=system_embed_color)
     embed.set_image(url="attachment://card.png")    
     
-    await send_webhook(target_channel=channel, user_name="Prof. Hagrid", content=f"Mention: <@{new_user.id}>", embed=embed, file=image, view=WelcomeView(user=new_user, stickers=server.stickers))
+    message = await send_webhook(target_channel=channel, user_name="Prof. Hagrid", content=f"Mention: <@{new_user.id}>", embed=embed, file=image, view=WelcomeView(user=new_user, stickers=server.stickers))
+    WelcomeMessages().add_message_id(message.id)
