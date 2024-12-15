@@ -219,7 +219,7 @@ async def send_as(interaction: Interaction, member: Optional[discord.Member], op
 async def postpone_club_event_24h(interaction: Interaction):
     ''' Postpone the next Club Event by 24h '''
     
-    trigger_club_event = ExtraVariable(id=1)
+    trigger_club_event = ExtraVariable(name="trigger_club_event")
 
     if trigger_club_event.value:
         await interaction.response.send_message("The next Club Event will be **skipped**!", ephemeral=True)
