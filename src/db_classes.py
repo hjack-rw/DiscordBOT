@@ -1,4 +1,4 @@
-from src.variables import db_connection, db_cursor
+from src.variables import base_date, db_connection, db_cursor
 
 from datetime import datetime, timedelta
 from enum import Enum
@@ -7,15 +7,19 @@ __all__ = ["ExtraVariable", "WelcomeMessages", "Portkeys"]
 
 
 def convert_to_date(date_in_int: int) -> datetime:
-    return datetime(year=1900, month=1, day=1) + timedelta(days=date_in_int)
+    return base_date + timedelta(days=date_in_int)
 
 def convert_to_int(date: datetime) -> int:
-    origin = datetime(year=1900, month=1, day=1)
     date = datetime(year=date.year, month=date.month, day=date.day)
+    delta = date - base_date
+    return delta.days
 
-    delta = origin - date
-
-    return abs(delta.days)
+def is_binary(string: str) -> bool:
+    string = set(string)
+    if string == {'0', '1'} or string == {'0'} or string == {'1'}:
+        return True
+    else :
+        return False
 
 
 class Filter(Enum):
@@ -95,6 +99,8 @@ class Database():
             return int(value)
         elif type == datetime:
             return convert_to_int(value)
+        elif type == str and is_binary(value):
+            return int(value, 2)
         else:
             return value
 
@@ -103,6 +109,9 @@ class Database():
             return bool(value)
         elif type == "date":
             return convert_to_date(value)
+        elif "binary" in type:
+            string = '{0:0'+ type.split("_")[1] + 'b}'
+            return string.format(value)
         else:
             return value
 
@@ -174,7 +183,7 @@ class Portkeys(Database):
         self.id = id
         self.table = "portkeys"
         self.columns = self._get_columns(self.table)
-        self.types = {"from_wb": "bool", "birthday": "date", "archived": "bool"}
+        self.types = {"from_wb": "bool", "multiple_choice": "binary_13", "birthday": "date", "archived": "bool"}
         
         if self.id:
             self.items = self._select_from(self.table, id, add=Filter.ID)
