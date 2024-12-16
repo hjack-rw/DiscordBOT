@@ -147,9 +147,9 @@ class Database():
 
 class ExtraVariable(Database):
     def __init__(self, name):
-        self.name = name
         self.table = "extra_variables"
         self.columns = self._get_columns(self.table)
+        self.name = name
         
         items = self._select_from(self.table, id=name, add=Filter.NAME)
         items = self._get_values_from_items(items, self.columns)[0]
@@ -180,16 +180,20 @@ class WelcomeMessages(Database):
 
 class Portkeys(Database):
     def __init__(self, id=None):
-        self.id = id
         self.table = "portkeys"
         self.columns = self._get_columns(self.table)
         self.types = {"from_wb": "bool", "multiple_choice": "binary_13", "birthday": "date", "archived": "bool"}
         
-        if self.id:
-            self.items = self._select_from(self.table, id, add=Filter.ID)
-        else:
+        if id is None:
             self.items = self._select_from(self.table)
+        else:
+            self.id = self.last_portkey() if id == "last" else id
+            self.items = self._select_from(self.table, self.id, add=Filter.ID)
     
+    # get last Portkey id
+    def last_portkey(self):
+        return list(self._select_from(table="sqlite_sequence", id=self.table, add=Filter.NAME).keys())[0][0]
+
     # add Portkey
     def add_portkey(self,):
         if self.id:
@@ -199,7 +203,9 @@ class Portkeys(Database):
     def get(self):
         if self.id:
             # single record
-            return self._get_values_from_items(self.items, self.columns, self.types)[0]
+            dict = {"id": self.id}
+            dict.update(self._get_values_from_items(self.items, self.columns, self.types)[0])
+            return dict
         else:
             # multiple (for birthdays)
             items = self._get_values_from_items(self.items, self.columns, self.types)
