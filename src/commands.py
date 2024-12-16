@@ -1,7 +1,7 @@
 from src.body import bot
-from src.db_classes import ExtraVariable
-from src.functions import send_command, send_webhook, get_avatar
-from src.variables import local_deploy, server_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
+from src.db_classes import ExtraVariable, Portkeys
+from src.functions import send_command, send_webhook, get_avatar, print_portkey, parse_portkey_data
+from src.variables import local_deploy, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
 
 import re
 import statistics
@@ -9,6 +9,7 @@ from typing import Optional, Literal
 
 import discord
 
+from discord.errors import NotFound
 from discord.embeds import Embed
 from discord.interactions import Interaction
 
@@ -56,7 +57,6 @@ house_cup = {"gryffindor": {"points": [], "all_members": 0, "link": "https://sta
              "slytherin":  {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/4/45/Slytherin_Crest.png/revision/latest?cb=20111112232353"},}
 
 
-
 # Leaderboard functionality
 def limit(value, limit):
     return value if value else limit
@@ -98,7 +98,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
         
         user_ids = []
         for message in [message async for message in side_channel.history(limit=None) if message.author.id == 1035970092284002384][::-1]:
-            user_ids += re.findall(r"\<@\s*\+?(-?\d+)\s*\>", message.content)
+            user_ids += re.findall(r'''\<@\s*\+?(-?\d+)\s*\>''', message.content)
 
         await side_channel.purge(limit=None)
 
@@ -127,14 +127,13 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
             percent = int(re.findall(pattern=r'''\s*\+?(-?\d+)%''', string=progress.description)[0])
             exp = get_user_exp(level, percent)
 
-            for house in house_cup:
-                if any(role in [role.name for role in member.roles] for role in [house]):
-                    house_cup[house]["points"].append(exp)
+            roles = [role.name for role in member.roles]
+            house_cup[[house for house in house_cup if house in roles][0]]["points"] += [exp]
 
             if level > max_level:
                 level = max_level
 
-            animal_string = f'''{member.display_name}'{"s" if member.display_name[-1].upper() != "S" else ""} pet rank is:  {animal_rank[level]}'''
+            animal_string = f'''{member.display_name}'{"s" if (member.display_name[-1].upper() != "S") else ""} pet rank is:  {animal_rank[level]}'''
 
             if member.roles[-1].name in ["captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"]:
                 color = member.roles[-1].color.value
@@ -193,7 +192,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
 # Webhook functionality
 @bot.tree.command(name="polyjuice")
 async def send_as(interaction: Interaction, member: Optional[discord.Member], option: Optional[Literal[tuple(custom_avatars.keys())]], say:str): # type: ignore
-    ''' Send message as user '''
+    ''' Send a message as User '''
     
     if not member and not option:
         await interaction.response.send_message("Pick a member or an option!", ephemeral=True)
@@ -228,3 +227,76 @@ async def postpone_club_event_24h(interaction: Interaction):
     
     # change the variable value
     trigger_club_event.change_value(to=not trigger_club_event.value)
+
+
+# Portkey handling functionality
+@bot.tree.context_menu(name="Accept Portkey")
+async def accept_portkey(interaction: discord.Interaction, message: discord.Message):
+    ''' Accept Portkey '''
+    
+    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+
+    try:
+        server = bot.get_guild(server_id)
+        portkey = parse_portkey_data(server, message)
+        Portkeys().add_portkey(portkey)
+        
+    except ValueError as error:
+        await interaction.channel.send(f"Something went very wrong here... {error}!", delete_after=10)
+
+
+@bot.tree.command(name="accept_portkey")
+async def accept_portkey_for_user(interaction: discord.Interaction, message_id: str, member: discord.Member):
+    ''' Accept Portkey for User '''
+    
+    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+
+    try:
+        server = bot.get_guild(server_id)
+        message = await interaction.channel.fetch_message(message_id)
+        portkey = parse_portkey_data(server, message, member)
+        Portkeys().add_portkey(portkey)
+    
+    except ValueError as error:
+        await interaction.channel.send(f"Something went very wrong here... {error}!", delete_after=10)
+    
+    except NotFound:
+        await interaction.channel.send("Something went very wrong here... what you are trying to accept is not a Portkey!", delete_after=10)
+
+
+@bot.tree.command(name="post_portkey")
+async def post_portkey(interaction: Interaction, id:str):
+    ''' Print a Portkey '''
+
+    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+
+    server = bot.get_guild(server_id)
+
+    try:
+        portkey = Portkeys(id).get()
+        channel = server.get_channel(channel_ids["portkey-arrival"])
+        
+        await channel.send(embed=print_portkey(server, portkey))
+    except IndexError:
+        await interaction.channel.send("Something went very wrong here... there is no Portkey with that ID!", delete_after=10)
+
+
+@bot.tree.context_menu(name="Edit Portkey")
+async def edit_portkey(interaction: discord.Interaction, message: discord.Message):
+    ''' Edit Portkey '''
+
+    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+
+    # check if message is sent by webhook and if it has the correct embed
+    if message.author.id == bot_id and "Portkey" in message.embeds[0].footer.text:
+        id = int(message.embeds[0].footer.text.split("#")[1])
+
+        server = bot.get_guild(server_id)
+        portkey = Portkeys(id).get()
+
+        await message.edit(embed=print_portkey(server, portkey))
+    
+    elif message.author.id == 952824326766333972:
+        await interaction.channel.send("Something went very wrong here... the Portkey you are trying to edit has not yet been accepted!", delete_after=10)
+    else:
+        await interaction.channel.send("Something went very wrong here... what you are trying to edit is not a Portkey!", delete_after=10)

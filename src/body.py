@@ -1,6 +1,6 @@
 from src.db_classes import WelcomeMessages
 from src.tasks import club_event_reminder, game_reset_reminder, my_midnight_reminder, game_midnight_reminder
-from src.variables import local_deploy, server_id, channel_ids, channel_ids_test
+from src.variables import local_deploy, server_id, bot_id, channel_ids, channel_ids_test
 from src.views import WelcomeView
 
 import re
@@ -25,7 +25,7 @@ if test:
 class BOT(commands.Bot):
     
     def __init__(self):
-        super().__init__(command_prefix="/", intents=Intents.all(), application_id=1305607183139864669)
+        super().__init__(command_prefix="/", intents=Intents.all(), application_id=bot_id)
 
     async def on_ready(self):
         print(f"{'Deployed locally' if local_deploy else 'Logged on as'} {self.user}!")
