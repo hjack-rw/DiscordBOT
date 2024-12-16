@@ -43,9 +43,9 @@ class WelcomeView(View):
         elif interaction.user.id == self.user.id:
             return await interaction.response.send_message("You can't do it yourself, let others greet you!", ephemeral=True)
 
-        else:        
+        else:
             if interaction.user.id not in self.clicked_users:
-                self.clicked_users.append(interaction.user.id)
+                self.clicked_users += [interaction.user.id]
 
                 sticker = choice(self.stickers)
 
