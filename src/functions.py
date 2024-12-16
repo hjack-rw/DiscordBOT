@@ -1,5 +1,6 @@
 from src.variables import server_id, webhook_id, custom_avatars, wait_for, absolute_path, discord_token, bot_token
 
+from discord.embeds import Embed
 from discord.file import File
 from discord.utils import MISSING
 
@@ -141,3 +142,56 @@ def draw_infocard(new_user, all_members):
     bytes.seek(0)
     
     return File(bytes, filename="card.png")
+
+
+def print_portkey(server, portkey):
+    member = server.get_member(int(portkey["user_id"]))
+    roles = [role.name for role in member.roles]
+
+    if member.roles[-1].name in ["captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"]:
+        color = member.roles[-1].color.value
+    else:
+        color = 5198940
+
+    houses = {"gryffindor":"<:gryffindor:1255656359190462484> Gryffindor",
+              "hufflepuff":"<:hufflepuff:1255656360780238849> Hufflepuff",
+              "ravenclaw":"<:ravenclaw:1255656362617212999> Ravenclaw",
+              "slytherin":"<:slytherin:1255656364244729856> Slytherin"}
+    
+    form_answers = ["🤺 Solo Dueling\n\n",
+                    "🤺🤺 Duo Dueling\n\n",
+                    "😎🤺 Casual Matches\n\n",
+                    "🧙🌳 Club Adventures\n\n",
+                    "🧙🧙 Club Events (Dance / Quiz / Duel Tournament)\n\n",
+                    "📚 Classes\n\n",
+                    "🧹 Quidditch\n\n",
+                    "🌳 Solo Forbidden Forest\n\n",
+                    "🌳🌳 Team Forbidden Forest (OTP / Gold / Echos)\n\n",
+                    "🌹 Verdant Victories\n\n",
+                    "🌱 Herbology\n\n",
+                    "💃 Dancing\n\n",
+                    "📸 Photoshoots\n\n",
+                    f"{portkey['additional_info']}\n\n"]
+    
+    doc_url = "https://docs.google.com/document/d/1CJMk8wJZkYnXG729xHGPvsyaj5BtrXMZeqlIOV_4qtA/edit?usp=sharing"
+
+    line_1 = f"<@{portkey['user_id']}> | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
+    line_2 = houses[[house for house in houses if house in roles][0]]
+    line_3 = (("Yes | " if portkey["from_wb"] else "No, ") + portkey["old_username"]) if portkey["old_username"] else ("Yes" if portkey["from_wb"] else "No")
+    line_4 = "• " + "• ".join([form_answers[idx] for idx,choice in enumerate(portkey["multiple_choice"][::-1] + ("1" if portkey["additional_info"] else "0")) if choice == "1"])
+    line_5 = portkey["birthday"].strftime("%d.%m.%Y")
+    line_6 = portkey["extra"]
+
+    embed = Embed(color=color)
+    embed.add_field(name="1. Hello, I'm... | And my ID is...", value=line_1, inline=True)
+    embed.add_field(name="2. My house is...", value=line_2, inline=True)
+    embed.add_field(name="3. Did I come from the WB server? | My name was...", value=line_3, inline=False)
+    embed.add_field(name="4. In the game I like doing...", value=line_4, inline=False)
+    embed.add_field(name="5. I was born...", value=line_5, inline=False)
+
+    embed.set_footer(text=f"Portkey #{portkey['id']}")
+
+    if portkey["extra"]:
+        embed.add_field(name="6. You may also want to know...", value=line_6, inline=False)
+
+    return embed
