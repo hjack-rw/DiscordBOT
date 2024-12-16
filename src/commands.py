@@ -1,7 +1,7 @@
 from src.body import bot
-from src.db_classes import ExtraVariable
-from src.functions import send_command, send_webhook, get_avatar
-from src.variables import local_deploy, server_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
+from src.db_classes import ExtraVariable, Portkeys
+from src.functions import send_command, send_webhook, get_avatar, print_portkey
+from src.variables import local_deploy, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
 
 import re
 import statistics
@@ -127,9 +127,8 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
             percent = int(re.findall(pattern=r'''\s*\+?(-?\d+)%''', string=progress.description)[0])
             exp = get_user_exp(level, percent)
 
-            for house in house_cup:
-                if any(role in [role.name for role in member.roles] for role in [house]):
-                    house_cup[house]["points"].append(exp)
+            roles = [role.name for role in member.roles]
+            house_cup[[house for house in house_cup if house in roles][0]]["points"].append(exp)
 
             if level > max_level:
                 level = max_level
@@ -228,3 +227,40 @@ async def postpone_club_event_24h(interaction: Interaction):
     
     # change the variable value
     trigger_club_event.change_value(to=not trigger_club_event.value)
+
+
+# Portkey handling functionality
+@bot.tree.command(name="add_portkey")
+async def add_portkey(interaction: Interaction, id:str):
+    ''' Print a Portkey '''
+
+    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+
+    server = bot.get_guild(server_id)
+
+    try:
+        portkey = Portkeys(id).get()
+        channel = server.get_channel(channel_ids["portkey-arrival"])
+        
+        await channel.send(embed=print_portkey(server, portkey))
+    except IndexError:
+        await interaction.channel.send("Something went very wrong here... there is no Portkey with that ID!", delete_after=10)
+
+
+@bot.tree.context_menu(name="Edit Portkey")
+async def edit_portkey(interaction: discord.Interaction, message: discord.Message):
+    ''' Edit a Portkey '''
+
+    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+
+    # check if message is sent by webhook and if it has the correct embed
+    if message.author.id == bot_id and "Portkey" in message.embeds[0].footer.text:
+        id = int(message.embeds[0].footer.text.split("#")[1])
+
+        server = bot.get_guild(server_id)
+        portkey = Portkeys(id).get()
+
+        await message.edit(embed=print_portkey(server, portkey))
+    
+    else:
+        await interaction.channel.send("Something went very wrong here... what you are trying to edit is not a Portkey!", delete_after=10)
