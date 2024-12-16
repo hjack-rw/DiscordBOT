@@ -14,8 +14,6 @@ if __name__ == '__main__':
 # trigger on weekly cards
 # create new task
 
-#TODO! portkey fixer: save forms.app to base and print from base
-
 #TODO! list all members of a house
 # each house a page. buttons to turn pages (?)
 
