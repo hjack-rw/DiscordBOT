@@ -2,19 +2,26 @@ from src.variables import base_date, db_connection, db_cursor
 
 from datetime import datetime, timedelta
 from enum import Enum
+from sqlite3 import IntegrityError
 
 __all__ = ["ExtraVariable", "WelcomeMessages", "Portkeys"]
 
 
-def convert_to_date(date_in_int: int) -> datetime:
-    return base_date + timedelta(days=date_in_int)
+def convert_to_date(date_in_int: int):
+    try:
+        return base_date + timedelta(days=date_in_int)
+    except TypeError:
+        return None
 
-def convert_to_int(date: datetime) -> int:
-    date = datetime(year=date.year, month=date.month, day=date.day)
-    delta = date - base_date
-    return delta.days
+def convert_to_int(date: datetime):
+    try:
+        date = datetime(year=date.year, month=date.month, day=date.day)
+        delta = date - base_date
+        return delta.days
+    except TypeError:
+        return None
 
-def is_binary(string: str) -> bool:
+def is_binary(string: str):
     string = set(string)
     if string == {'0', '1'} or string == {'0'} or string == {'1'}:
         return True
@@ -56,7 +63,8 @@ class Database():
         condition = add.value.replace("0", str(id))
         change = self._return_value(new_value, type(new_value))
 
-        self.cur.execute(f"UPDATE {table} SET {column} = {change}{condition};")
+        command = f"UPDATE {table} SET {column} = {change}{condition};".replace("None", "NULL")
+        self.cur.execute(command)
         self.con.commit()
         return new_value
 
@@ -69,10 +77,15 @@ class Database():
             id = list(self._select_from(table="sqlite_sequence", id=table, add=Filter.NAME).keys())[0]
 
             columns = ", ".join([column for column in columns.keys() if columns[column] != -1])
-            values = ", ".join(str(x) for x in new_record)
+            values = ", ".join([self._return_value(record, type(record)) for record in new_record])
 
-            self.cur.execute(f"INSERT INTO {table} ({columns}) VALUES ({values});")
-            self.con.commit()
+            try:
+                command = f"INSERT INTO {table} ({columns}) VALUES ({values});".replace("None", "NULL")
+                self.cur.execute(command)
+                self.con.commit()
+            except IntegrityError:
+                raise ValueError("failed to add to the database")
+            
             items[new_record] = int(id[0]) + 1
         
         return items
@@ -96,13 +109,15 @@ class Database():
     
     def _return_value(self, value, type):
         if type == bool:
-            return int(value)
+            value = int(value)
         elif type == datetime:
-            return convert_to_int(value)
-        elif type == str and is_binary(value):
-            return int(value, 2)
-        else:
-            return value
+            value = convert_to_int(value)
+        elif type == str: 
+            if is_binary(value):
+                value = int(value, 2)
+            else:
+                return f"'{value}'"
+        return f"{value}"
 
     def _get_value(self, value, type):
         if type == "bool":
@@ -139,7 +154,7 @@ class Database():
                     temp_dict[column] = instance[idx]
 
             
-            return_list.append(temp_dict)
+            return_list += [temp_dict]
         
         return return_list
 
@@ -147,9 +162,9 @@ class Database():
 
 class ExtraVariable(Database):
     def __init__(self, name):
-        self.name = name
         self.table = "extra_variables"
         self.columns = self._get_columns(self.table)
+        self.name = name
         
         items = self._select_from(self.table, id=name, add=Filter.NAME)
         items = self._get_values_from_items(items, self.columns)[0]
@@ -180,26 +195,35 @@ class WelcomeMessages(Database):
 
 class Portkeys(Database):
     def __init__(self, id=None):
-        self.id = id
         self.table = "portkeys"
         self.columns = self._get_columns(self.table)
         self.types = {"from_wb": "bool", "multiple_choice": "binary_13", "birthday": "date", "archived": "bool"}
         
-        if self.id:
-            self.items = self._select_from(self.table, id, add=Filter.ID)
-        else:
+        if id is None:
+            self.id = None
             self.items = self._select_from(self.table)
+        else:
+            self.id = self.last_portkey() if (id == "last") else id
+            self.items = self._select_from(self.table, self.id, add=Filter.ID)
     
+    # get last Portkey id
+    def last_portkey(self):
+        return list(self._select_from(table="sqlite_sequence", id=self.table, add=Filter.NAME).keys())[0][0]
+
     # add Portkey
-    def add_portkey(self,):
+    def add_portkey(self, portkey):
         if self.id:
             print("Can only add with full table loaded!")
+        else:
+            self.items = self._insert(self.table, self.columns, self.items, new_record=portkey)
 
     # return Portkeys
     def get(self):
         if self.id:
             # single record
-            return self._get_values_from_items(self.items, self.columns, self.types)[0]
+            dict = {"id": self.id}
+            dict.update(self._get_values_from_items(self.items, self.columns, self.types)[0])
+            return dict
         else:
             # multiple (for birthdays)
             items = self._get_values_from_items(self.items, self.columns, self.types)
