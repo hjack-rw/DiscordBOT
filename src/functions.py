@@ -1,5 +1,6 @@
-from src.variables import server_id, webhook_id, custom_avatars, wait_for, absolute_path, discord_token, bot_token
+from src.variables import server_id, webhook_id, custom_avatars, wait_for, absolute_path, discord_token, bot_token, system_embed_color
 
+from discord.embeds import Embed
 from discord.file import File
 from discord.utils import MISSING
 
@@ -8,8 +9,10 @@ from PIL import Image, ImageFont, ImageDraw, ImageFilter
 import requests
 session = requests.Session()
 
+from datetime import datetime
 import io
 import json
+import re
 import time
 
 __all__ = ["send_command", "send_message", "send_webhook", "get_image", "get_avatar", "draw_infocard"] 
@@ -19,6 +22,20 @@ headers = {"authorization": f"Bot {bot_token}",
             "content-type": "application/json",
             "user-agent": "BOT (http://discord.com, v1.0)",}
 
+
+form_answers = ["🤺 Solo Dueling",
+                "🤺🤺 Duo Dueling",
+                "😎🤺 Casual Matches",
+                "🧙🌳 Club Adventures",
+                "🧙🧙 Club Events (Dance / Quiz / Duel Tournament)",
+                "📚 Classes",
+                "🧹 Quidditch",
+                "🌳 Solo Forbidden Forest",
+                "🌳🌳 Team Forbidden Forest (OTP / Gold / Echos)",
+                "🌹 Verdant Victories",
+                "🌱 Herbology",
+                "💃 Dancing",
+                "📸 Photoshoots",]
 
 
 def send_command(target_channel_id, app_id, version, id, command, options=[]):
@@ -95,25 +112,21 @@ def draw_infocard(new_user, all_members):
     # download avatar
     avatar = Image.open(io.BytesIO(get_image(url=url)))
     
-
     # scaling
     base_width = 220
     w_percent = (base_width / float(avatar.size[0]))
     h_size = int((float(avatar.size[1]) * float(w_percent)))
     avatar = avatar.resize((base_width, h_size), Image.Resampling.LANCZOS)
 
-
     #load fonts
     if len(new_user.name) > 15:
         name_font = ImageFont.truetype(font=(absolute_path + "image_module/RUNES.ttf"), size=80)
     else:
         name_font = ImageFont.truetype(font=(absolute_path + "image_module/RUNES.ttf"), size=100)
-    
+
     footer_font = ImageFont.truetype(font=(absolute_path + "image_module/MAGIC.ttf"), size=35)
 
-
     draw = ImageDraw.Draw(background)
-
 
     #write on background
     if len(new_user.name) > 9:
@@ -123,7 +136,6 @@ def draw_infocard(new_user, all_members):
     
     draw.text(xy=(790, 200), text=f"We are now {all_members} members!", fill=(235, 235, 235), font=footer_font, align="center", anchor='mm')
 
-
     # add mask
     blur_radius = 1
     mask = Image.new(mode="L", size=avatar.size, color=0)
@@ -131,13 +143,130 @@ def draw_infocard(new_user, all_members):
     draw.ellipse(xy=(5, 8, base_width-5, base_width-5), fill=255)
     mask = mask.filter(ImageFilter.GaussianBlur(blur_radius))
 
-    
     background.paste(im=avatar, box=(215, 20), mask=mask)
     
-
     # save
     bytes = io.BytesIO()
     background.save(bytes, format="PNG")
     bytes.seek(0)
     
     return File(bytes, filename="card.png")
+
+
+def get_member_id_by_nick(server, nick):
+    for member in server.members:
+        if member.nick == nick:
+            return member.id
+    return None
+
+def remove_extra_characters(string, is_id=False):
+    if is_id:
+        return re.sub(r'''\D''', "", string)
+    else:
+        return string.lstrip(" ").rstrip(" ").replace("\r\n", "")
+    
+def parse_multiple_possibilities(value):
+    if len(list := [remove_extra_characters(value) for value in value.split("|")]) == 1:
+        list += [None]
+    return list
+
+def parse_portkey_data(server, message, member=None):
+    if message.author.id == 952824326766333972:
+        for field in message.embeds[0].fields:
+            idx = field.name.split(".")[0]
+
+            if idx == "1":
+                if member is None:
+                    if (user_id := get_member_id_by_nick(server, nick=field.value)) is None:
+                        return ValueError(f"no User with nickname {field.value} on the server")
+                else:
+                    user_id = member.id
+            
+            elif idx == "2":
+                if (game_id := remove_extra_characters(field.value, is_id=True)) is None:
+                    game_id = 0
+                else:
+                    game_id = int(game_id)
+            
+            elif idx == "3":
+                continue
+            
+            elif idx == "4":
+                (from_wb, old_username) = parse_multiple_possibilities(field.value)
+                from_wb = True if (from_wb == "Yes") else False
+            
+            elif idx == "5":
+                multiple_choice = parse_multiple_possibilities(field.value)
+                
+                additional_info = multiple_choice.pop(-1)
+                
+                if additional_info in form_answers:
+                    multiple_choice += [additional_info]
+                    additional_info = None
+
+                multiple_choice = "".join([("1" if (answer in multiple_choice) else "0") for answer in form_answers[::-1]])
+            
+            elif idx == "6":
+                birthday = field.value.split(".")
+                birthday[2] = int(birthday[2]) if (int(birthday[2]) != datetime.now().year) else 1900
+                birthday = datetime(day=int(birthday[0]), month=int(birthday[1]), year=int(birthday[2]))
+            
+            elif idx == "7":
+                extra = field.value if (field.value != "-") else None
+            
+        return (user_id, game_id, from_wb, old_username, multiple_choice, additional_info, birthday, extra, 0,)
+    else:
+        return ValueError("what you are trying to accept is not a Portkey")
+
+
+def print_portkey(server, portkey):
+    member = server.get_member(int(portkey["user_id"]))
+    
+    try:
+        roles = [role.name for role in member.roles]
+
+        if member.roles[-1].name in ["captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"]:
+            color = member.roles[-1].color.value
+        else:
+            color = 5198940
+    except AttributeError:
+        color = system_embed_color
+
+    
+    doc_url = "https://docs.google.com/document/d/1CJMk8wJZkYnXG729xHGPvsyaj5BtrXMZeqlIOV_4qtA/edit?usp=sharing"
+
+    houses = {"gryffindor":"<:gryffindor:1255656359190462484> Gryffindor",
+              "hufflepuff":"<:hufflepuff:1255656360780238849> Hufflepuff",
+              "ravenclaw":"<:ravenclaw:1255656362617212999> Ravenclaw",
+              "slytherin":"<:slytherin:1255656364244729856> Slytherin",
+              "BOTS":""}
+    
+    form_answers_extended = [f"{answer}\n\n" for answer in form_answers]
+    form_answers_extended += [f"{portkey['additional_info']}\n\n"]
+    
+
+    embed = Embed(color=color, description=f"**User:** <@{portkey['user_id']}>")
+    
+    line_1 = f"{member.nick if member.nick else member.global_name} | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
+    embed.add_field(name="1. Hello, I'm... | And my ID is...", value=line_1, inline=True)
+
+    line_2 = houses[[house for house in houses if house in roles][0]]
+    embed.add_field(name="2. My house is...", value=line_2, inline=True)
+    
+    line_3 = (("Yes | " if portkey["from_wb"] else "No, ") + portkey["old_username"]) if portkey["old_username"] else ("Yes" if portkey["from_wb"] else "No")
+    embed.add_field(name="3. Did I come from the WB server? | My name was...", value=line_3, inline=False)
+
+    line_4 = "• " + "• ".join([form_answers_extended[idx] for idx,choice in enumerate(portkey["multiple_choice"][::-1] + ("1" if portkey["additional_info"] else "0")) if choice == "1"])
+    embed.add_field(name="4. In the game I like doing...", value=line_4, inline=False)
+    
+    if (not_skip := portkey["birthday"] is not None):
+        line_5 = portkey["birthday"].strftime("%d.%m.%Y") if portkey["birthday"].year != 1900 else portkey["birthday"].strftime("%d.%m")
+        embed.add_field(name="5. I was born...", value=line_5, inline=False)
+
+    if portkey["extra"]:
+        line_6 = portkey["extra"]
+        embed.add_field(name=f"{6 if not_skip else 5}. You may also want to know...", value=line_6, inline=False)
+    
+    embed.set_footer(text=f"Portkey #{portkey['id']}")
+
+    return embed
