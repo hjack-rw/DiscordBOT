@@ -1,8 +1,19 @@
-from src.variables import base_date, db_connection, db_cursor
-
 from datetime import datetime, timedelta
 from enum import Enum
-from sqlite3 import IntegrityError
+import os
+import sqlite3
+
+def connect_db():
+    try:
+        path = os.getcwd() + "/src/"
+        db = sqlite3.connect(path + '_database.db')
+    except sqlite3.Error as error:
+        print(error)
+    finally:
+        return db, db.cursor()
+    
+db_connection, db_cursor = connect_db()
+base_date = datetime(year=2000, month=1, day=1)
 
 __all__ = ["ExtraVariable", "WelcomeMessages", "Portkeys"]
 
@@ -81,7 +92,7 @@ class Database():
             try:
                 self.cur.execute(f"INSERT INTO {table} ({columns}) VALUES ({values});")
                 self.con.commit()
-            except IntegrityError:
+            except sqlite3.IntegrityError:
                 raise ValueError("failed to add to the database")
             
             items[new_record] = int(id[0]) + 1
