@@ -1,6 +1,6 @@
 from src.body import bot
 from src.db_classes import ExtraVariable, Portkeys
-from src.functions import send_command, send_webhook, get_avatar, print_portkey, parse_portkey_data
+from src.functions import standard_response, send_command, send_webhook, get_avatar, print_portkey, parse_portkey_data
 from src.variables import local_deploy, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
 
 import re
@@ -72,7 +72,7 @@ def get_user_exp(current_level, percent):
 async def update_leaderboard(interaction: Interaction, mention_all:bool, with_house_cup:bool):
     ''' Updates the Server's Leaderboard '''
     
-    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+    await standard_response(interaction)
 
     server = bot.get_guild(server_id)
     channel = server.get_channel(channel_ids["leaderboard"])
@@ -198,7 +198,7 @@ async def send_as(interaction: Interaction, member: Optional[discord.Member], op
         await interaction.response.send_message("Pick a member or an option!", ephemeral=True)
 
     else:
-        await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+        await standard_response(interaction)
 
         if member:
             user_name = member.nick
@@ -234,7 +234,7 @@ async def postpone_club_event_24h(interaction: Interaction):
 async def accept_portkey(interaction: discord.Interaction, message: discord.Message):
     ''' Accept Portkey '''
     
-    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+    await standard_response(interaction)
 
     try:
         server = bot.get_guild(server_id)
@@ -249,7 +249,7 @@ async def accept_portkey(interaction: discord.Interaction, message: discord.Mess
 async def accept_portkey_for_user(interaction: discord.Interaction, message_id: str, member: discord.Member):
     ''' Accept Portkey for User '''
     
-    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+    await standard_response(interaction)
 
     try:
         server = bot.get_guild(server_id)
@@ -268,7 +268,7 @@ async def accept_portkey_for_user(interaction: discord.Interaction, message_id: 
 async def post_portkey(interaction: Interaction, id:str):
     ''' Print a Portkey '''
 
-    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+    await standard_response(interaction)
 
     server = bot.get_guild(server_id)
 
@@ -285,7 +285,7 @@ async def post_portkey(interaction: Interaction, id:str):
 async def edit_portkey(interaction: discord.Interaction, message: discord.Message):
     ''' Edit Portkey '''
 
-    await interaction.response.send_message("A wizard must show patience: please, wait for it to finish!", ephemeral=True)
+    await standard_response(interaction)
 
     # check if message is sent by webhook and if it has the correct embed
     if message.author.id == bot_id and "Portkey" in message.embeds[0].footer.text:
