@@ -1,6 +1,3 @@
-from src.functions import send_message
-from src.variables import channel_ids, channel_ids_test, local_deploy
-
 from discord.enums import ButtonStyle
 from discord.interactions import Interaction
 from discord.partial_emoji import PartialEmoji
@@ -10,17 +7,6 @@ from random import choice
 
 
 __all__ = ["WelcomeView"] 
-
-
-# SETTINGS 
-test_views = True if local_deploy else False
-#// test_views = True # an overwrite
-
-
-# for testing
-if test_views:
-    channel_ids = channel_ids_test
-
 
 
 # welcome view
@@ -51,7 +37,7 @@ class WelcomeView(View):
 
                 # TODO! If they ever allow webhooks to send stickers
                 await interaction.response.send_message("Your message has been sent!", ephemeral=True)
-                return send_message(target_channel_id=channel_ids["welcome"], content=f"<@{interaction.user.id}> says: Welcome <@{self.user.id}>! {sticker.description}", message_id=interaction.message.id, stickers=[sticker.id])
+                await interaction.message.reply(content=f"<@{interaction.user.id}> says: Welcome <@{self.user.id}>! {sticker.description}", stickers=[sticker])
 
             else:
-                return await interaction.response.send_message("We limited the interactions to one greeting per user!", ephemeral=True)
+                await interaction.response.send_message("We limited the interactions to one greeting per user!", ephemeral=True)
