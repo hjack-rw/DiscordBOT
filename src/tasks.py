@@ -114,7 +114,8 @@ async def club_event_reminder(server):
         delete_message.start(message)
     
     else:
-        trigger_club_event.change_value(to=True)
+        pass
+        #trigger_club_event.change_value(to=True)
 
 
 
