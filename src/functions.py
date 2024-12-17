@@ -15,7 +15,7 @@ import json
 import re
 import time
 
-__all__ = ["standard_response", "send_command", "send_webhook", "get_image", "get_avatar", "draw_infocard", "arse_portkey_data", "print_portkey"] 
+__all__ = ["standard_response", "send_command", "send_webhook", "get_image", "get_avatar", "draw_infocard", "parse_portkey_data", "print_portkey"] 
 
 
 headers = {"authorization": f"Bot {bot_token}",
