@@ -11,12 +11,12 @@ from discord.flags import Intents
 
 
 # SETTINGS 
-test = True if local_deploy else False
-#// test_command = True # an overwrite
+test_body = True if local_deploy else False
+#test_body = False # an overwrite
 
 
 # for testing
-if test:
+if test_body:
     channel_ids = channel_ids_test
 
 
