@@ -1,6 +1,6 @@
 from src.db_classes import ExtraVariable
 from src.functions import send_webhook, get_image
-from src.variables import local_deploy, channel_ids, channel_ids_test, system_embed_color
+from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color
 
 from discord.embeds import Embed
 from discord.enums import EntityType, PrivacyLevel
@@ -13,11 +13,6 @@ import pytz
 __all__ = ["game_reset_reminder", "club_event_reminder", "game_midnight_reminder", "my_midnight_reminder"] 
 
 
-# SETTINGS 
-test_tasks = True if local_deploy else False
-#// test_tasks = True # an overwrite
-
-
 time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, microsecond=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
                 "club event":    time(hour=19, minute=25, second=0, microsecond=0, tzinfo=timezone.utc),                    # UTC
                 "game_midnight": time(hour=0,  minute=0,  second=0, microsecond=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
@@ -28,8 +23,11 @@ delete_after = {"hours":1, "minutes":5, "seconds":0}
 weekday = {0:"Monday", 1:"Tuesday",  2:"Wednesday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
 
 
+# SETTINGS
 # for testing
-if test_tasks:
+# test_bot["test_tasks"] = True # overwrite if needed
+
+if test_bot["test_tasks"]:
     now = datetime.now()
     after_minutes = 2
 
@@ -69,7 +67,7 @@ async def club_event_reminder(server):
         today = datetime.now(tz=timezone.utc)
         print(f'''"Club event" task running... {today}!''')
 
-        if test_tasks:
+        if test_bot["test_tasks"]:
             end_after = timedelta(minutes=after_minutes)
             date = now + timedelta(minutes=after_minutes*2)
         else:
@@ -133,7 +131,7 @@ async def my_midnight_reminder(server):
     print(f'''"My Midnight" task running... {today}!''')
 
     # for staff (on sunday)
-    if notify := (test_tasks or today.weekday() == 6):
+    if notify := (test_bot["test_tasks"] or today.weekday() == 6):
         channel = server.get_channel(channel_ids["staffroom"])
         
         message = "<@&1221884134121668648> <@&1221910705318662154> Dear Staff, remember to take a picture of this week's top 3 students!"
