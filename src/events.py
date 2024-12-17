@@ -1,21 +1,18 @@
 from src.body import bot
 from src.db_classes import WelcomeMessages
 from src.functions import send_webhook, draw_infocard
-from src.variables import local_deploy, server_id, channel_ids, channel_ids_test, system_embed_color
+from src.variables import test_bot, server_id, channel_ids, channel_ids_test, system_embed_color
 from src.views import WelcomeView
 
 from discord.embeds import Embed
 
 
-# SETTINGS 
-test_events = True if local_deploy else False
-#// test_command = True # an overwrite
-
-
+# SETTINGS
 # for testing
-if test_events:
-    channel_ids = channel_ids_test
+# test_bot["test_events"] = True # overwrite if needed
 
+if test_bot["test_events"]:
+    channel_ids = channel_ids_test
 
 
 # Welcoming event

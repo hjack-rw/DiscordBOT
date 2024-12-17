@@ -1,6 +1,6 @@
 from src.db_classes import WelcomeMessages
 from src.tasks import club_event_reminder, game_reset_reminder, my_midnight_reminder, game_midnight_reminder
-from src.variables import local_deploy, server_id, bot_id, channel_ids, channel_ids_test
+from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test
 from src.views import WelcomeView
 
 import re
@@ -10,15 +10,12 @@ from discord.ext import commands
 from discord.flags import Intents
 
 
-# SETTINGS 
-test = True if local_deploy else False
-#// test_command = True # an overwrite
-
-
+# SETTINGS
 # for testing
-if test:
-    channel_ids = channel_ids_test
+# test_bot["test_body"] = True # overwrite if needed
 
+if test_bot["test_body"]:
+    channel_ids = channel_ids_test
 
 
 # Main BOT body
@@ -28,7 +25,7 @@ class BOT(commands.Bot):
         super().__init__(command_prefix="/", intents=Intents.all(), application_id=bot_id)
 
     async def on_ready(self):
-        print(f"{'Deployed locally' if local_deploy else 'Logged on as'} {self.user}!")
+        print(f"{'Deployed locally' if any(test_bot.values()) else 'Logged on as'} {self.user}!")
 
         try:
             synched = await self.tree.sync()
@@ -57,7 +54,7 @@ class BOT(commands.Bot):
                 pass
         
         ### TESTS HERE ###
-        if local_deploy:
+        if test_bot["local_deploy"]:
             
             
 

@@ -1,3 +1,5 @@
+from pre_init import test_bot
+
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -8,11 +10,10 @@ import sqlite3
 path = os.getcwd() + "/src/"
 load_dotenv(dotenv_path=Path(path + "env"))
 
-__all__ = ["local_deploy", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "wait_for", "absolute_path",
+__all__ = ["test_bot", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "wait_for", "absolute_path",
            "discord_token", "bot_token", "system_embed_color", "base_date", "db_connection", "db_cursor"] 
 
 
-local_deploy = False if (path == os.getenv("SERVER")) else True
 server_id = 1221838993071538327
 bot_id = 1305607183139864669
 webhook_id = 1310623344122531851
