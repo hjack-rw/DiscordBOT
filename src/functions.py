@@ -15,12 +15,18 @@ import json
 import re
 import time
 
-__all__ = ["send_command", "send_message", "send_webhook", "get_image", "get_avatar", "draw_infocard"] 
+__all__ = ["standard_response", "send_command", "send_message", "send_webhook", "get_image", "get_avatar", "draw_infocard", "arse_portkey_data", "print_portkey"] 
+
+
+verification_switchboard = {"message": False,  # None atm
+                            "webhook": True,   # Polyjuice
+                            "command": False,  # Leaderboard
+                            "image":   True}   # Event
 
 
 headers = {"authorization": f"Bot {bot_token}",
-            "content-type": "application/json",
-            "user-agent": "BOT (http://discord.com, v1.0)",}
+           "content-type": "application/json",
+           "user-agent": "BOT (http://discord.com, v1.0)",}
 
 
 form_answers = ["🤺 Solo Dueling",
@@ -38,6 +44,10 @@ form_answers = ["🤺 Solo Dueling",
                 "📸 Photoshoots",]
 
 
+async def standard_response(interaction):
+    await interaction.response.send_message("A wizard must show patience... please, wait for the command to finish!", ephemeral=True)
+
+
 def send_command(target_channel_id, app_id, version, id, command, options=[]):
     payload = {"type":2,
                "application_id":app_id,
@@ -50,7 +60,7 @@ def send_command(target_channel_id, app_id, version, id, command, options=[]):
     headers = {"authorization": discord_token,
                "content-type": "application/json",}
 
-    response = session.post(url="https://discord.com/api/v9/interactions", json=payload, headers=headers)
+    response = session.post(url="https://discord.com/api/v9/interactions", json=payload, headers=headers, verify=verification_switchboard["command"])
     print(response)
 
     if response.status_code < 300:
@@ -66,7 +76,7 @@ def send_message(target_channel_id, content, message_id=None, stickers=[]):
     if message_id:
         payload.update({"message_reference": {"channel_id": target_channel_id, "message_id": message_id}})
     
-    print(session.post(url=f"https://discord.com/api/v9/channels/{target_channel_id}/messages", data=json.dumps(payload), headers=headers))
+    print(session.post(url=f"https://discord.com/api/v9/channels/{target_channel_id}/messages", data=json.dumps(payload), headers=headers, verify=verification_switchboard["message"]))
     time.sleep(wait_for)
 
 
@@ -80,7 +90,7 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
         except KeyError:
             user_avatar_url = custom_avatars["Prof. Dumbledore"]
     
-    response = session.patch(f"https://discordapp.com/api/webhooks/{webhook_id}", json=payload, headers=headers)
+    response = session.patch(f"https://discordapp.com/api/webhooks/{webhook_id}", json=payload, headers=headers, verify=verification_switchboard["webhook"])
     print(response)
 
     if response.status_code == 200:
@@ -96,7 +106,7 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
 
 
 def get_image(url):
-    response = session.get(url)
+    response = session.get(url, verify=verification_switchboard["image"])
     return response.content
 
 def get_avatar(user):
