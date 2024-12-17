@@ -1,3 +1,5 @@
+from pre_init import test_tasks
+
 from src.db_classes import ExtraVariable
 from src.functions import send_webhook, get_image
 from src.variables import local_deploy, channel_ids, channel_ids_test, system_embed_color
@@ -13,9 +15,9 @@ import pytz
 __all__ = ["game_reset_reminder", "club_event_reminder", "game_midnight_reminder", "my_midnight_reminder"] 
 
 
-# SETTINGS 
-test_tasks = True if local_deploy else False
-#// test_tasks = True # an overwrite
+# SETTINGS
+if local_deploy:
+    test_tasks = True # overwrite if needed
 
 
 time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, microsecond=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
@@ -114,7 +116,8 @@ async def club_event_reminder(server):
         delete_message.start(message)
     
     else:
-        trigger_club_event.change_value(to=True)
+        pass
+        #trigger_club_event.change_value(to=True)
 
 
 
