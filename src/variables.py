@@ -1,18 +1,19 @@
+from pre_init import test_bot
+
 from dotenv import load_dotenv
 from pathlib import Path
 
 from datetime import datetime
 import os
-import sqlite3
 
 path = os.getcwd() + "/src/"
 load_dotenv(dotenv_path=Path(path + "env"))
 
-__all__ = ["local_deploy", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "wait_for", "absolute_path",
-           "discord_token", "bot_token", "system_embed_color", "base_date", "db_connection", "db_cursor"] 
+__all__ = ["absolute_path", "test_bot", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "wait_for",
+           "discord_token", "bot_token", "system_embed_color"] 
 
 
-local_deploy = False if (path == os.getenv("SERVER")) else True
+absolute_path = path
 server_id = 1221838993071538327
 bot_id = 1305607183139864669
 webhook_id = 1310623344122531851
@@ -35,20 +36,6 @@ custom_avatars = {"Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypo
                   "Prof. Hagrid": "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",}
 
 wait_for = 3 # seconds
-absolute_path = path
 discord_token = os.getenv("DISCORD_TOKEN")
 bot_token = os.getenv("DISCORD_BOT_TOKEN")
 system_embed_color = 16777215
-base_date = datetime(year=2000, month=1, day=1)
-
-
-def connect_db():
-    try:
-        db = sqlite3.connect(path + '_database.db')
-    except sqlite3.Error as error:
-        print(error)
-    finally:
-        return db, db.cursor()
-    
-
-db_connection, db_cursor = connect_db()

@@ -1,5 +1,9 @@
 .gitignore
+requirements.txt
+pre_init.py
+__pycache__/pre_init.cpython-310.pyc
 src/env
+src/_database.db
 src/_database.db-journal
 src/__pycache__/__init__.cpython-310.pyc
 src/__pycache__/body.cpython-310.pyc
