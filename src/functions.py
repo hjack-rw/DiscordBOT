@@ -145,10 +145,10 @@ def draw_infocard(new_user, all_members):
 
 
 def get_member_id_by_nick(server, nick):
-    for member in server.members:
-        if member.nick == nick:
-            return member.id
-    return None
+    try:
+        return [member.id for member in server.members if member.nick == nick][0]
+    except IndexError:
+        return None
 
 def remove_extra_characters(string, is_id=False):
     if is_id:

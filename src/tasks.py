@@ -1,4 +1,4 @@
-from src.db_classes import ExtraVariable
+from src.db_classes import ExtraVariable, Portkeys
 from src.functions import send_webhook, get_image
 from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color
 
@@ -10,13 +10,14 @@ from datetime import datetime, time, timedelta, timezone
 import time as time_module
 import pytz
 
-__all__ = ["game_reset_reminder", "club_event_reminder", "game_midnight_reminder", "my_midnight_reminder"] 
+__all__ = ["game_reset_reminder", "morning_reminder", "club_event_reminder", "game_midnight_reminder", "my_midnight_reminder"] 
 
 
-time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, microsecond=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
-                "club event":    time(hour=19, minute=25, second=0, microsecond=0, tzinfo=timezone.utc),                    # UTC
-                "game_midnight": time(hour=0,  minute=0,  second=0, microsecond=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
-                "my_midnight":   time(hour=0,  minute=0,  second=0, microsecond=0, tzinfo=pytz.timezone("Europe/Warsaw")),} # UTC+1
+time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
+                "morning":       time(hour=7,  minute=0,  second=0, tzinfo=pytz.timezone("Europe/Warsaw")),  # UTC+1
+                "club event":    time(hour=19, minute=25, second=0, tzinfo=timezone.utc),                    # UTC
+                "game_midnight": time(hour=0,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
+                "my_midnight":   time(hour=0,  minute=0,  second=0, tzinfo=pytz.timezone("Europe/Warsaw")),} # UTC+1
 
 delete_after = {"hours":1, "minutes":5, "seconds":0}
 
@@ -55,6 +56,39 @@ if test_bot["test_tasks"]:
 async def game_reset_reminder(server):
     today = datetime.now(tz=timezone.utc)
     print(f'''"Game Reset" task running... {today}!''')
+
+
+
+# morning reminder:
+@tasks.loop(time=time_trigger["morning"])
+async def morning_reminder(server):
+    today = datetime.now(tz=timezone.utc)
+    print(f'''"Morning" task running... {today}!''')
+
+    portkeys = Portkeys().get()
+
+    if test_bot["test_tasks"]:
+        birthdays = [385899007991480321 for _ in range(1)]
+    else:
+        birthdays = [portkey["user_id"] for portkey in portkeys if (portkey["birthday"].month == today.month) and (portkey["birthday"].day == today.day)]
+
+    if birthdays:
+        
+        # create birthday notification message
+        embed = Embed(color=system_embed_color, description=f"I see something in the stars... Today is a very special day!")
+        embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name="Birthday Announcement!")
+        embed.set_thumbnail(url="https://i.pinimg.com/564x/d8/48/59/d848592fca62cc100b148b5b77006248.jpg")
+
+        for idx, birthday in enumerate(birthdays):
+            if idx == 0:
+                embed.add_field(name="", value=f"Please, wish <@{birthday}> a **Happy Birthday** <:hugs:1256225688403447888> :heart:", inline=False)
+            else:
+                embed.add_field(name="", value=f"Wait! There's more...\nPlease, wish <@{birthday}> a **Happy Birthday** as well <:hugs:1256225688403447888> :heart:", inline=False)
+
+        embed.set_footer(text="GOP  •  " + today.strftime("%d/%m/%Y"))
+
+        channel = server.get_channel(channel_ids["the-3-broomsticks"])
+        await send_webhook(target_channel=channel, user_name="Prof. Trelawney", embed=embed)
 
 
 
