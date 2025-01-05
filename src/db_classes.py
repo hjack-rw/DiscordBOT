@@ -53,12 +53,8 @@ class Database():
             condition = add.value
         
         self.cur.execute(f"SELECT * FROM {table}{condition};")
-        
-        items = {}
-        for item in self.cur:
-            items[item[1:]] = item[0]
-        
-        return items
+
+        return {item[1:]:item[0] for item in self.cur}
     
     def _update(self, table, column, id, old_value, new_value, add=Filter.ID):
         if type(old_value) != type(new_value):
