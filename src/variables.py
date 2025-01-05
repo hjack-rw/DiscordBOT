@@ -25,14 +25,16 @@ channel_ids = {"welcome": 1221838993071538330,
                "staffroom": 1283404834804076587,
                "announcements": 1222126723902996480,
                "portkey-arrival": 1281357645902512168,
-               "leaderboard": 1305540120631447654,}
+               "leaderboard": 1305540120631447654,
+               "the-3-broomsticks": 1221920204385161319,}
 
 channel_ids_test = {"assets": 1317172237572509787}
 channel_ids_test.update({key:channel_ids["testing"] for key in channel_ids if key != "assets"})
 
 custom_avatars = {"Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypotter/images/8/82/ProfessorDumbledore.jpg",
                   "Prof. McGonagall": "https://m.natemat.pl/4cccf528bb2fabc88d662c3ac8a519ef,922,0,0,0.png",
-                  "Prof. Hagrid": "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",}
+                  "Prof. Hagrid": "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",
+                  "Prof. Trelawney": "https://www.tafce.com/images/thumb/9/9b/Professor_Sybil_Trelawney_HPATOOTP_-_Edited.png/350px-Professor_Sybil_Trelawney_HPATOOTP_-_Edited.png",}
 
 wait_for = 3 # seconds
 discord_token = os.getenv("DISCORD_TOKEN")
