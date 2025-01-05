@@ -1,5 +1,5 @@
 from src.db_classes import WelcomeMessages
-from src.tasks import club_event_reminder, game_reset_reminder, my_midnight_reminder, game_midnight_reminder
+from src.tasks import *
 from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test
 from src.views import WelcomeView
 
@@ -36,10 +36,11 @@ class BOT(commands.Bot):
         
         server = self.get_guild(server_id)
 
+        game_reset_reminder.start(server)
+        morning_reminder.start(server)
         club_event_reminder.start(server)
         game_midnight_reminder.start(server)
         my_midnight_reminder.start(server)
-        game_reset_reminder.start(server)
 
         for message_id in WelcomeMessages().get_all()[::-1]:
             try:
