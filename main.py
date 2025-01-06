@@ -4,9 +4,6 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! fich:
-# add base date to database & make it changeable via command
-
 #TODO! flitwick:
 # trigger on weekly cards
 # create new task
