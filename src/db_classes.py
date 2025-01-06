@@ -42,7 +42,7 @@ def is_binary(string: str):
 
 class Filter(Enum):
     NONE = ""
-    ID = " WHERE ID = 0"
+    ID   = " WHERE ID = 0"
     NAME = " WHERE NAME = '0'"
 
 
