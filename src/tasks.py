@@ -2,14 +2,15 @@ from src.db_classes import ExtraVariable, Portkeys
 from src.functions import send_webhook, get_image
 from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color
 
-from discord.embeds import Embed
-from discord.enums import EntityType, PrivacyLevel
-from discord.ext import tasks
-
 from datetime import datetime, time, timedelta, timezone
 import re
 import time as time_module
 import pytz
+
+from discord.embeds import Embed
+from discord.enums import EntityType, PrivacyLevel
+from discord.ext import tasks
+
 
 __all__ = ["morning_reminder", "club_event_reminder", "game_midnight_reminder", "midnight_reminder"] 
 
@@ -22,9 +23,7 @@ time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.
 
 delete_after = {"hours":0, "minutes":0, "seconds":0}
 
-weekday = {0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
-
-base_date_maintenance = datetime(year=2025, month=1, day=7)
+weekdays = {0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
 
 
 # SETTINGS
@@ -101,7 +100,7 @@ async def club_event_reminder(server):
 
         event_info = {"image_id":    "event_image",
                       "title":       "GOP Club Events!",
-                      "subtitle":   f"Reminder: {weekday[today.weekday()]}!",
+                      "subtitle":   f"Reminder: {weekdays[today.weekday()]}!",
                       "description": "**We start 000!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance!",
                       "location":    "HP: Magic Awakened ឵឵(Sphinx)",
                       "footer":   '''"Place your right hand on my waist and...\nOne, two, three... One, two, three..."''',
@@ -120,7 +119,7 @@ async def game_midnight_reminder(server):
     today = datetime.now(tz=pytz.timezone("Africa/Cairo"))
     print(f'''"Game Midnight" task running... {datetime.now(tz=timezone.utc)}!''', today)
 
-    delta = datetime(year=today.year, month=today.month, day=today.day) - base_date_maintenance
+    delta = datetime(year=today.year, month=today.month, day=today.day) - ExtraVariable(name="base_date_maintenance").value
     if (test_bot["test_tasks"] or delta.days % 14 == 0):
         print("It's Maintenance! Notify!")
 

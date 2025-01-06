@@ -18,16 +18,19 @@ if test_bot["test_events"]:
 # Welcoming event
 @bot.event
 async def on_member_join(new_user):
-    server = bot.get_guild(server_id)
-    channel = server.get_channel(channel_ids["welcome"])
-    
-    image = draw_infocard(new_user=new_user, all_members=len([member for member in server.members if not member.bot]))
+    if not new_user.bot:
+        server = bot.get_guild(server_id)
+        channel = server.get_channel(channel_ids["welcome"])
+        
+        image = draw_infocard(new_user=new_user, all_members=len([member for member in server.members if not member.bot]))
 
-    embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=system_embed_color)
-    embed.set_image(url="attachment://card.png")
-    embed.set_footer(text=f'''"You're a Wizard, {new_user.name}."''')
-    
-    message = await send_webhook(target_channel=channel, user_name="Prof. Hagrid", content=f"Mention: <@{new_user.id}>", embed=embed, file=image, view=WelcomeView(user=new_user, stickers=server.stickers))
-    
-    if not test_bot["test_events"]:
-        WelcomeMessages().add_message_id(message.id)
+        embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=system_embed_color)
+        embed.set_image(url="attachment://card.png")
+        embed.set_footer(text=f'''"You're a Wizard, {new_user.name}."''')
+        
+        message = await send_webhook(target_channel=channel, user_name="Prof. Hagrid", content=f"Mention: <@{new_user.id}>", embed=embed, file=image, view=WelcomeView(user=new_user, stickers=server.stickers))
+        
+        if not test_bot["test_events"]:
+            WelcomeMessages().add_message_id(message.id)
+    else:
+        print(f"BOT: {new_user.name} joined the server!")
