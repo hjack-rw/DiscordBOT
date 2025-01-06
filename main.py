@@ -7,9 +7,6 @@ if __name__ == '__main__':
 #TODO! portkey:
 #automatic add to online word document (?)
 
-#TODO! filch:
-# trigger on maintance, every 2 weeks
-
 #TODO! sprout:
 # trigger on herbology related stuff:
 # weekly plants, own timers for plants with notification for the server

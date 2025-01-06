@@ -54,7 +54,7 @@ def send_command(target_channel_id, app_id, version, id, command, options=[]):
                "content-type": "application/json",}
 
     response = session.post(url="https://discord.com/api/v9/interactions", json=payload, headers=headers,)
-    print(response)
+    #print(response)
 
     if response.status_code < 300:
         time.sleep(wait_for)
@@ -72,7 +72,7 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
             user_avatar_url = custom_avatars["Prof. Dumbledore"]
     
     response = session.patch(f"https://discordapp.com/api/webhooks/{webhook_id}", json=payload, headers=headers,)
-    print(response)
+    #print(response)
 
     if response.status_code == 200:
         webhook = [webhook for webhook in await target_channel.webhooks() if webhook.id == webhook_id][0]

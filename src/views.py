@@ -23,7 +23,6 @@ class WelcomeView(View):
     async def hello(self, interaction: Interaction, button: Button):
         
         if self.user is None:
-            print(self.user)
             return await interaction.response.send_message("User not found!", ephemeral=True)
         
         elif interaction.user.id == self.user.id:

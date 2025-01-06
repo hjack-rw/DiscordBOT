@@ -7,6 +7,7 @@ from discord.enums import EntityType, PrivacyLevel
 from discord.ext import tasks
 
 from datetime import datetime, time, timedelta, timezone
+import re
 import time as time_module
 import pytz
 
@@ -16,12 +17,14 @@ __all__ = ["game_reset_reminder", "morning_reminder", "club_event_reminder", "ga
 time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
                 "morning":       time(hour=7,  minute=0,  second=0, tzinfo=pytz.timezone("Europe/Warsaw")),  # UTC+1
                 "club event":    time(hour=19, minute=25, second=0, tzinfo=timezone.utc),                    # UTC
-                "game_midnight": time(hour=0,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
+                "game_midnight": time(hour=23, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2
                 "my_midnight":   time(hour=0,  minute=0,  second=0, tzinfo=pytz.timezone("Europe/Warsaw")),} # UTC+1
 
-delete_after = {"hours":1, "minutes":5, "seconds":0}
+delete_after = {"hours":0, "minutes":0, "seconds":0}
 
 weekday = {0:"Monday", 1:"Tuesday",  2:"Wednesday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
+
+base_date_maintenance = datetime(year=2025, month=1, day=7)
 
 
 # SETTINGS
@@ -32,8 +35,9 @@ if test_bot["test_tasks"]:
     now = datetime.now()
     after_minutes = 2
 
+    base_date_maintenance = datetime(year=now.year, month=now.month, day=now.day)
+
     hour, minute  = (int(value) for value in now.strftime("%H/%M").split("/"))
-    
     if minute <= (59 - after_minutes):
         minute += after_minutes
     else:
@@ -44,8 +48,6 @@ if test_bot["test_tasks"]:
 
     time_trigger = {key:time(hour=hour, minute=minute, tzinfo=tz) for key in time_trigger}
     channel_ids = channel_ids_test
-    
-    delete_after = {"hours":0, "minutes":after_minutes*2, "seconds":0}
     
     del[hour, minute, tz]
 
@@ -73,22 +75,20 @@ async def morning_reminder(server):
         birthdays = [portkey["user_id"] for portkey in portkeys if (portkey["birthday"].month == today.month) and (portkey["birthday"].day == today.day)]
 
     if birthdays:
-        
+
         # create birthday notification message
-        embed = Embed(color=system_embed_color, description=f"I see something in the stars... Today is a very special day!")
+        embed = Embed(color=system_embed_color, description="**GOP  •  " + today.strftime("%d/%m/%Y") + "**\n")
+        embed.description += f"Please, wish <@{birthdays[0]}> a **Happy Birthday** <:hugs:1256225688403447888> :heart:"
         embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name="Birthday Announcement!")
         embed.set_thumbnail(url="https://i.pinimg.com/564x/d8/48/59/d848592fca62cc100b148b5b77006248.jpg")
 
-        for idx, birthday in enumerate(birthdays):
-            if idx == 0:
-                embed.add_field(name="", value=f"Please, wish <@{birthday}> a **Happy Birthday** <:hugs:1256225688403447888> :heart:", inline=False)
-            else:
-                embed.add_field(name="", value=f"Wait! There's more...\nPlease, wish <@{birthday}> a **Happy Birthday** as well <:hugs:1256225688403447888> :heart:", inline=False)
+        for birthday in birthdays[1:]:
+            embed.add_field(name="", value=f"Wait! There's more...\nPlease, wish <@{birthday}> a **Happy Birthday** as well <:hugs:1256225688403447888> :heart:", inline=False)
 
-        embed.set_footer(text="GOP  •  " + today.strftime("%d/%m/%Y"))
+        embed.set_footer(text='''"I can see something in the stars...\nToday is a very special day!"''')
 
         channel = server.get_channel(channel_ids["the-3-broomsticks"])
-        await send_webhook(target_channel=channel, user_name="Prof. Trelawney", embed=embed)
+        await send_webhook(target_channel=channel, user_name="Prof. Trelawney", content="Mention: @everyone", embed=embed)
 
 
 
@@ -101,49 +101,15 @@ async def club_event_reminder(server):
         today = datetime.now(tz=timezone.utc)
         print(f'''"Club event" task running... {today}!''')
 
-        if test_bot["test_tasks"]:
-            end_after = timedelta(minutes=after_minutes)
-            date = now + timedelta(minutes=after_minutes*2)
-        else:
-            end_after = timedelta(hours=1)
-            date = today.replace(hour=19, minute=30, second=0)
+        event_info = {"image_id": "event_image",
+                      "title": "GOP Club Events!",
+                      "subtitle": f"Reminder: {weekday[today.weekday()]}!",
+                      "description": "**We start 000!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance!",
+                      "location": "HP: Magic Awakened ឵឵(Sphinx)",
+                      "footer": '''"Place your right hand on my waist and...\nOne, two, three... One, two, three..."''',
+                      "account": "Prof. McGonagall",}
         
-        unix_time_timer = convert_to_unix_time(date=date, mode="R")
-        unix_time_hour = convert_to_unix_time(date=date, mode="t")
-
-        event_info = {"title": "GOP Club Events!",
-                      "description": f"**We start {unix_time_timer}!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance Event!",
-                      "location": "HP: Magic Awakened  (Sphinx)"}
-        
-        # get image
-        channel = server.get_channel(channel_ids["assets"])
-        message = [message async for message in channel.history(limit=None) if message.content == "event_image"][0]
-
-        # create event
-        try:
-            await server.create_scheduled_event(name=event_info["title"],
-                                                start_time=date.astimezone(),
-                                                end_time=(date + end_after).astimezone(),
-                                                description=event_info["description"],
-                                                location=event_info["location"],
-                                                privacy_level=PrivacyLevel.guild_only,
-                                                entity_type=EntityType.external,
-                                                image=get_image(url=message.attachments[0]))
-        except ValueError:
-            print("Could not create event!")
-        
-        
-        # create notification message
-        embed = Embed(color=system_embed_color, title=event_info["title"], description=event_info["description"])
-        embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=f"Reminder: {weekday[date.weekday()]} Club Events!")
-        embed.add_field(name="Location", value=event_info["location"], inline=False)
-        embed.add_field(name="Scheduled for", value=f"{unix_time_hour}", inline=True)
-        embed.add_field(name="Duration", value="~1 hour", inline=True)
-
-
-        channel = server.get_channel(channel_ids["announcements"])
-        message = await send_webhook(target_channel=channel, user_name="Prof. McGonagall", content="<@&1278844289694171260>", embed=embed)
-        delete_message.start(message)
+        await set_event_and_notification(server, event_info, end_time=(1,0,0), start_time=(19,30,0), today=today)
     
     else:
         trigger_club_event.change_value(to=True)
@@ -155,6 +121,20 @@ async def club_event_reminder(server):
 async def game_midnight_reminder(server):
     today = datetime.now(tz=timezone.utc)
     print(f'''"Game Midnight" task running... {today}!''')
+
+    delta = datetime(year=today.year, month=today.month, day=today.day) - base_date_maintenance
+    if delta.days % 14 == 0:
+        print("It's Maintenance! Notify!")
+
+        event_info = {"image_id": "maintenance_image",
+                      "title": "",
+                      "subtitle": "Reminder: <Maintenance!>",
+                      "description": "**It starts 000!**\nDuring this period the game will be unavailable!",
+                      "location": "HP: Magic Awakened ឵឵(Sphinx)",
+                      "footer": '''"Go on, scram! Or I will hanging you by your thumbs in the dungeons!"''',
+                      "account": "Mr. Filch",}
+        
+        await set_event_and_notification(server, event_info, end_time=(3,0,0), start_time=(22,00,0), today=today)
 
 
 
@@ -168,8 +148,10 @@ async def my_midnight_reminder(server):
     if notify := (test_bot["test_tasks"] or today.weekday() == 6):
         channel = server.get_channel(channel_ids["staffroom"])
         
-        message = "<@&1221884134121668648> <@&1221910705318662154> Dear Staff, remember to take a picture of this week's top 3 students!"
-        await send_webhook(target_channel=channel, user_name="Prof. Dumbledore", content=message)
+        embed = Embed(color=system_embed_color, description="Dear Staff,\nremember to take a picture of this week's top 3 students!\n")
+        embed.set_footer(text='''"But be quick! It is not wise to be wandering around this late hour."''')
+        
+        await send_webhook(target_channel=channel, user_name="Prof. Dumbledore", content="Mention: <@&1221884134121668648> <@&1221910705318662154>", embed=embed)
 
     print(f"It's {weekday[today.weekday()]}! " + ("Notify!" if notify else "Don't notify!"))
 
@@ -183,9 +165,74 @@ async def delete_message(message):
         await message.delete()
 
 
-def convert_to_unix_time(date: datetime, mode: str) -> str:
+def convert_to_unix_time(date: datetime, mode: str):
     # get a tuple of the date attributes
     date_tuple = (date.year, date.month, date.day, date.hour, date.minute, date.second)
 
     # convert to unix time
     return f'<t:{int(time_module.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
+
+
+async def set_event_and_notification(server, event_info, end_time, start_time, today):
+    
+    # for testing
+    if test_bot["test_tasks"]:
+        delete_after["minutes"] = after_minutes * 2
+        
+        end_after = timedelta(minutes=after_minutes)
+        date = now + timedelta(minutes=after_minutes*2)
+    else:
+        delete_after["hours"] = end_time[0]
+        delete_after["minutes"] = start_time[1] - today.minute
+        
+        if delete_after["minutes"] < 0:
+            delete_after["minutes"] = 0
+        
+        print("h:", delete_after["hours"], " m:", delete_after["minutes"])
+        end_after = timedelta(hours=end_time[0], minutes=end_time[1], seconds=end_time[2])
+        date = today.replace(hour=start_time[0], minute=start_time[1], second=start_time[2])
+    
+
+    # insert weekday and timer
+    event_name = event_info["title"] if event_info["title"] else re.search('<(.*)>', event_info["subtitle"]).group(1)
+    event_info["subtitle"] = event_info["subtitle"].replace("<", "").replace(">", "")
+    event_info["description"] = event_info["description"].replace("000", convert_to_unix_time(date=date, mode="R"))
+    
+    
+    # get image
+    channel = server.get_channel(channel_ids["assets"])
+    message = [message async for message in channel.history(limit=None) if message.content == event_info["image_id"]][0]
+
+
+    if not test_bot["test_tasks"]:
+    # create event
+        try:
+            await server.create_scheduled_event(name=event_name,
+                                                start_time=date.astimezone(),
+                                                end_time=(date + end_after).astimezone(),
+                                                description=event_info["description"],
+                                                location=event_info["location"],
+                                                privacy_level=PrivacyLevel.guild_only,
+                                                entity_type=EntityType.external,
+                                                image=get_image(url=message.attachments[0]))
+        except ValueError:
+            print("Could not create event!")
+    
+    
+    # create notification message
+    embed = Embed(color=system_embed_color, title=event_info["title"], description=event_info["description"])
+    embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=event_info["subtitle"])
+    embed.add_field(name="Location", value=event_info["location"], inline=False)
+    embed.add_field(name="Scheduled for", value=f"{convert_to_unix_time(date=date, mode='t')}", inline=True)
+    embed.add_field(name="Duration", value=f"~{delete_after['hours']} {'hours' if delete_after['hours'] > 1 else 'hour'}", inline=True)
+
+    if event_info["footer"]:
+        embed.set_footer(text=event_info["footer"])
+
+    channel = server.get_channel(channel_ids["announcements"])
+    message = await send_webhook(target_channel=channel, user_name=event_info["account"], content="Mention: <@&1278844289694171260>", embed=embed)
+    
+    
+    if not test_bot["test_tasks"]:
+        delete_message.change_interval(hours=delete_after["hours"], minutes=delete_after["minutes"], seconds=delete_after["seconds"])
+        delete_message.start(message)
