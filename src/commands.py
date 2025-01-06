@@ -24,16 +24,16 @@ if test_bot["test_command"]:
 
 # Complete list at:
 # https://harrypotter.fandom.com/wiki/List_of_creatures
-animal_rank = {0: "Flobberworm", #100
-               1: "Cornish Pixie", #255
-               2: "Bowtruckle", #475
-               3: "Puffskein", #770
-               4: "Diricawl", #1150
-               5: "Kneazle", #1625
-               6: "Mooncalf", #2205
-               7: "Niffler", #2900
-               8: "Demiguise", #3720
-               9: "Yeti", #4675
+animal_rank = {0:  "Flobberworm", #100
+               1:  "Cornish Pixie", #255
+               2:  "Bowtruckle", #475
+               3:  "Puffskein", #770
+               4:  "Diricawl", #1150
+               5:  "Kneazle", #1625
+               6:  "Mooncalf", #2205
+               7:  "Niffler", #2900
+               8:  "Demiguise", #3720
+               9:  "Yeti", #4675
                10: "Thunderbird", #5775
                11: "Sphinx", #7030
                12: "Erumpent", #8450
