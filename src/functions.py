@@ -54,7 +54,7 @@ def send_command(target_channel_id, app_id, version, id, command, options=[]):
                "content-type": "application/json",}
 
     response = session.post(url="https://discord.com/api/v9/interactions", json=payload, headers=headers,)
-    print(response)
+    #print(response)
 
     if response.status_code < 300:
         time.sleep(wait_for)
@@ -72,7 +72,7 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
             user_avatar_url = custom_avatars["Prof. Dumbledore"]
     
     response = session.patch(f"https://discordapp.com/api/webhooks/{webhook_id}", json=payload, headers=headers,)
-    print(response)
+    #print(response)
 
     if response.status_code == 200:
         webhook = [webhook for webhook in await target_channel.webhooks() if webhook.id == webhook_id][0]
@@ -230,11 +230,11 @@ def print_portkey(server, portkey):
     
     doc_url = "https://docs.google.com/document/d/1CJMk8wJZkYnXG729xHGPvsyaj5BtrXMZeqlIOV_4qtA/edit?usp=sharing"
 
-    houses = {"gryffindor":"<:gryffindor:1255656359190462484> Gryffindor",
-              "hufflepuff":"<:hufflepuff:1255656360780238849> Hufflepuff",
-              "ravenclaw":"<:ravenclaw:1255656362617212999> Ravenclaw",
-              "slytherin":"<:slytherin:1255656364244729856> Slytherin",
-              "BOTS":""}
+    houses = {"gryffindor": "<:gryffindor:1255656359190462484> Gryffindor",
+              "hufflepuff": "<:hufflepuff:1255656360780238849> Hufflepuff",
+              "ravenclaw":  "<:ravenclaw:1255656362617212999> Ravenclaw",
+              "slytherin":  "<:slytherin:1255656364244729856> Slytherin",
+              "BOTS":       ""}
     
     form_answers_extended = [f"{answer}\n\n" for answer in form_answers]
     form_answers_extended += [f"{portkey['additional_info']}\n\n"]
