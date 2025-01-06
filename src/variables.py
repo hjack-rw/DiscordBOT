@@ -8,6 +8,7 @@ import os
 path = os.getcwd() + "/src/"
 load_dotenv(dotenv_path=Path(path + "env"))
 
+
 __all__ = ["absolute_path", "test_bot", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "wait_for",
            "discord_token", "bot_token", "system_embed_color"] 
 

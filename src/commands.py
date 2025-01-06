@@ -3,9 +3,11 @@ from src.db_classes import ExtraVariable, Portkeys
 from src.functions import standard_response, send_command, send_webhook, get_avatar, print_portkey, parse_portkey_data
 from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
 
+from datetime import datetime
+from typing import Optional, Literal
+
 import re
 import statistics
-from typing import Optional, Literal
 
 from discord.embeds import Embed
 from discord.errors import NotFound
@@ -53,6 +55,8 @@ house_cup = {"gryffindor": {"points": [], "all_members": 0, "link": "https://sta
              "hufflepuff": {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/5/5e/Hufflepuff_crest.png/revision/latest?cb=20111112232427"},
              "ravenclaw":  {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/4/40/Ravenclaw_Crest_1.png/revision/latest?cb=20140604194505"},
              "slytherin":  {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/4/45/Slytherin_Crest.png/revision/latest?cb=20111112232353"},}
+
+months ={"01|January": 1, "02|February": 2, "03|March": 3, "04|April": 4, "05|May": 5, "06|June": 6, "07|July": 7, "08|August": 8, "09|September": 9, "10|October": 10, "11|November": 11, "12|December": 12}
 
 
 # Leaderboard functionality
@@ -225,6 +229,25 @@ async def postpone_club_event_24h(interaction: Interaction):
     
     # change the variable value
     trigger_club_event.change_value(to=not trigger_club_event.value)
+
+
+@bot.tree.command(name="set_maintenance")
+async def set_maintenance_base_date(interaction: Interaction, month: Literal[tuple(months.keys())], day: int): # type: ignore
+    ''' Set the base date for Maintenance '''
+
+    today = datetime.now()
+    
+    base_date_maintenance = ExtraVariable(name="base_date_maintenance")
+    
+    try:
+        new_date=datetime(year=today.year, month=months[month], day=day)
+        await interaction.response.send_message(f"The next Maintenance will trigger **every two weeks** from **{new_date.strftime('%d/%m/%Y')}**", ephemeral=True)
+    
+        # change the variable value
+        base_date_maintenance.change_value(to=new_date)
+
+    except ValueError as error:
+        await interaction.response.send_message(f"Something went very wrong here... {error}!", ephemeral=True)
 
 
 # Portkey handling functionality
