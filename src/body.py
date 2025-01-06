@@ -13,6 +13,7 @@ from discord.flags import Intents
 # SETTINGS
 # for testing
 # test_bot["test_body"] = True # overwrite if needed
+# test_bot["test_events"] = True # overwrite if needed
 
 if test_bot["test_body"]:
     channel_ids = channel_ids_test
@@ -36,11 +37,11 @@ class BOT(commands.Bot):
         
         server = self.get_guild(server_id)
 
-        game_reset_reminder.start(server)
+        #game_reset_reminder.start(server)
         morning_reminder.start(server)
         club_event_reminder.start(server)
         game_midnight_reminder.start(server)
-        my_midnight_reminder.start(server)
+        midnight_reminder.start(server)
 
         for message_id in WelcomeMessages().get_all()[::-1]:
             try:
@@ -54,6 +55,9 @@ class BOT(commands.Bot):
             except NotFound:
                 pass
         
+        if test_bot["test_events"]:
+            self.dispatch('member_join', server.get_member(385899007991480321))
+
         ### TESTS HERE ###
         if test_bot["local_deploy"]:
             
