@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from enum import Enum
 
+import copy
+import itertools
 import os
 import sqlite3
 
@@ -19,19 +21,29 @@ base_date = datetime(year=2000, month=1, day=1)
 __all__ = ["ExtraVariable", "WelcomeMessages", "Portkeys"]
 
 
-def convert_to_date(date_in_int: int):
+def convert_int_to_date(date_in_int: int):
     try:
         return base_date + timedelta(days=date_in_int)
     except TypeError:
         return None
 
-def convert_to_int(date: datetime):
+def convert_date_to_int(date: datetime):
     try:
         date = datetime(year=date.year, month=date.month, day=date.day)
         delta = date - base_date
         return delta.days
     except TypeError:
         return None
+
+
+def convert_int_to_combination(combination_in_int: int, requirements: list):
+    combinations = list(itertools.combinations([x for x in range(requirements[0])], requirements[1]))
+    return Combination(max_idx=requirements[0], instance=combinations[combination_in_int])
+
+def convert_combination_to_int(combination: tuple, requirements: list):
+    combinations = list(itertools.combinations([x for x in range(requirements[0])], requirements[1]))
+    return combinations.index(combination)
+
 
 def is_binary(string: str):
     string = set(string)
@@ -45,6 +57,16 @@ class Filter(Enum):
     NONE = ""
     ID   = " WHERE ID = 0"
     NAME = " WHERE NAME = '0'"
+
+
+class Combination:
+    def __init__(self, max_idx, instance):
+        self.max_idx      = max_idx
+        self.len_instance = len(instance)
+        self.instance     = instance
+    
+    def check(self):
+        return (len(set(self.instance)) == self.len_instance) and (max(self.instance) < self.max_idx)
 
 
 class Database():
@@ -64,8 +86,14 @@ class Database():
         return {item[1:]:item[0] for item in self.cur}
     
     def _update(self, table, column, id, old_value, new_value, add=Filter.ID):
-        if type(old_value) != type(new_value):
-            print("Mismatched datatypes!")
+        try:
+            if type(old_value) != type(new_value):
+                raise Exception("Mismatched datatypes!")
+            elif type(old_value) == Combination:
+                if type(old_value.instance) != type(new_value.instance) or not new_value.check():
+                    raise Exception("Mismatched datatypes!")
+        except Exception as exception:
+            print(exception)
             return old_value
 
         condition = add.value.replace("0", str(id))
@@ -114,29 +142,32 @@ class Database():
         self.cur.execute(f"PRAGMA table_info({table});")       
         #(item[0] if item[1] not in drop_columns else -1)
         return {item[1]:item[0] for idx,item in enumerate(self.cur) if idx != 0}
+
+    def _get_value(self, value, type):
+        if type == "bool":
+            return bool(value)
+        elif "binary" in type:
+            return ('{0:0' + type.split("_")[1] + 'b}').format(value)
+        elif "combination" in type:
+            return convert_int_to_combination(value, requirements=[int(x) for x in type.split('_') if x != "combination"])
+        elif type == "date":
+            return convert_int_to_date(value)
+        else:
+            return value
     
     def _return_value(self, value, type):
         if type == bool:
             value = int(value)
         elif type == datetime:
-            value = convert_to_int(value)
+            value = convert_date_to_int(value)
+        elif type == Combination:
+            value = convert_combination_to_int(value.instance, requirements=[value.max_idx, value.len_instance])
         elif type == str: 
             if is_binary(value):
                 value = int(value, 2)
             else:
                 return f"'{value}'"
         return f"{value}"
-
-    def _get_value(self, value, type):
-        if type == "bool":
-            return bool(value)
-        elif type == "date":
-            return convert_to_date(value)
-        elif "binary" in type:
-            string = '{0:0'+ type.split("_")[1] + 'b}'
-            return string.format(value)
-        else:
-            return value
 
     def _get_values_from_items(self, items, columns, types=None):
         if types is None:
@@ -175,14 +206,24 @@ class ExtraVariable(Database):
         self.name = name
         
         items = self._select_from(self.table, id=name, add=Filter.NAME)
-        items = self._get_values_from_items(items, self.columns)[0]
-
-        # return value
-        self.value = items["value"]
+        self.value = self._get_values_from_items(items, self.columns)[0]["value"]
 
     # change value
-    def change_value(self, to):
+    def change(self, to):
+        if type(self.value) == Combination:
+            value = copy.deepcopy(self.value)
+            value.instance = to
+        
+            to = value
+        
         self.value = self._update(self.table, column="value", id=self.name, old_value=self.value, new_value=to, add=Filter.NAME)
+    
+    # return value
+    def get(self):
+        if type(self.value) == Combination:
+            return self.value.instance
+        else:
+            return self.value
 
 
 class WelcomeMessages(Database):
@@ -192,7 +233,7 @@ class WelcomeMessages(Database):
         self.items = self._select_from(self.table)
 
     # add message_id to db
-    def add_message_id(self, message_id):
+    def add(self, message_id):
         new_record = (message_id,)
         self.items = self._insert(self.table, self.columns, self.items, new_record)
     
@@ -219,13 +260,13 @@ class Portkeys(Database):
         return list(self._select_from(table="sqlite_sequence", id=self.table, add=Filter.NAME).keys())[0][0]
 
     # add Portkey
-    def add_portkey(self, portkey):
+    def add(self, portkey):
         if self.id:
             print("Can only add with full table loaded!")
         else:
             self.items = self._insert(self.table, self.columns, self.items, new_record=portkey)
 
-    # return Portkeys
+    # return Portkey / Portkeys
     def get(self):
         if self.id:
             # single record

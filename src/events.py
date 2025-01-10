@@ -31,6 +31,6 @@ async def on_member_join(new_user):
         message = await send_webhook(target_channel=channel, user_name="Prof. Hagrid", content=f"Mention: <@{new_user.id}>", embed=embed, file=image, view=WelcomeView(user=new_user, stickers=server.stickers))
         
         if not test_bot["test_events"]:
-            WelcomeMessages().add_message_id(message.id)
+            WelcomeMessages().add(message.id)
     else:
         print(f"BOT: {new_user.name} joined the server!")
