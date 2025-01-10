@@ -8,6 +8,9 @@ if __name__ == '__main__':
 # trigger on weekly cards
 # create new task
 
+#TODO! dumbledore:
+# housecup
+
 #TODO! leaderboard should post to the same channel and copy attachments (?)
 
 #TODO! portkey:
@@ -16,6 +19,17 @@ if __name__ == '__main__':
 #TODO! list all members of a house
 # each house a page. buttons to turn pages (?)
 
+#TODO! subscription based system:
+# pick a role / clear all roles on button
+
 #TODO! sprout:
 # trigger on herbology related stuff:
-# weekly plants, own timers for plants with notification for the server
+# weekly plants,
+# own timers for plants with notification for the server:
+
+# - for own timers use create_a_task that is run on restart of the bot:
+# create_a_task(timer={"hours":0, "minutes":0, "seconds":0}).start(event_info={"id": 1})
+
+# - the times are from the database. while creating save to database. after executing delete
+# - limit for user that is set in code (2 for testing)
+# - seperate into aquatic and non aquatic

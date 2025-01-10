@@ -12,7 +12,7 @@ from discord.enums import EntityType, PrivacyLevel
 from discord.ext import tasks
 
 
-__all__ = ["morning_reminder", "club_event_reminder", "game_midnight_reminder", "midnight_reminder"] 
+__all__ = ["morning_reminder", "club_event_reminder", "game_midnight_reminder", "midnight_reminder", "create_a_task"] 
 
 
 time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - exact
@@ -94,7 +94,7 @@ async def morning_reminder(server):
 async def club_event_reminder(server):
     trigger_club_event = ExtraVariable(name="trigger_club_event")
 
-    if trigger_club_event.value:
+    if trigger_club_event.get():
         today = datetime.now(tz=timezone.utc)
         #print(f'''"Club event" task running... {today}!''')
 
@@ -109,7 +109,7 @@ async def club_event_reminder(server):
         await set_event_and_notification(server, event_info, event_duration=(1,0,0), start_time=(19,30,0), today=today)
     
     else:
-        trigger_club_event.change_value(to=True)
+        trigger_club_event.change(to=True)
 
 
 
@@ -119,7 +119,7 @@ async def game_midnight_reminder(server):
     today = datetime.now(tz=pytz.timezone("Africa/Cairo"))
     print(f'''"Game Midnight" task running... {datetime.now(tz=timezone.utc)}!''', today)
 
-    delta = datetime(year=today.year, month=today.month, day=today.day) - ExtraVariable(name="base_date_maintenance").value
+    delta = datetime(year=today.year, month=today.month, day=today.day) - ExtraVariable(name="base_date_maintenance").get()
     if (test_bot["test_tasks"] or delta.days % 14 == 0):
         print("It's Maintenance! Notify!")
 
@@ -151,6 +151,17 @@ async def midnight_reminder(server):
         
         await send_webhook(target_channel=channel, user_name="Prof. Dumbledore", content="Mention: <@&1221884134121668648> <@&1221910705318662154>", embed=embed)
 
+
+def create_a_task(timer):
+
+    @tasks.loop(hours=timer["hours"], minutes=timer["minutes"], seconds=timer["seconds"], count=2)
+    async def task_template(event_info):
+        if task_template.current_loop != 0:
+            print(f"Task executed! {event_info} {datetime.now()}")
+        else:
+            task_template.__name__ = f"task_{event_info['id']}"
+
+    return task_template
 
 
 def convert_to_unix_time(date: datetime, mode: str):
