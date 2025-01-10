@@ -222,13 +222,13 @@ async def postpone_club_event_24h(interaction: Interaction):
     
     trigger_club_event = ExtraVariable(name="trigger_club_event")
 
-    if trigger_club_event.value:
+    if trigger_club_event_value := trigger_club_event.get():
         await interaction.response.send_message("The next Club Event will be **skipped**!", ephemeral=True)
     else:
         await interaction.response.send_message("The next Club Event will be **restored**!", ephemeral=True)
     
     # change the variable value
-    trigger_club_event.change_value(to=not trigger_club_event.value)
+    trigger_club_event.change(to=not trigger_club_event_value)
 
 
 @bot.tree.command(name="set_maintenance")
@@ -244,7 +244,7 @@ async def set_maintenance_base_date(interaction: Interaction, month: Literal[tup
         await interaction.response.send_message(f"The next Maintenance will trigger **every two weeks** from **{new_date.strftime('%d/%m/%Y')}**", ephemeral=True)
     
         # change the variable value
-        base_date_maintenance.change_value(to=new_date)
+        base_date_maintenance.change(to=new_date)
 
     except ValueError as error:
         await interaction.response.send_message(f"Something went very wrong here... {error}!", ephemeral=True)
@@ -260,7 +260,7 @@ async def accept_portkey(interaction: Interaction, message: Message):
     try:
         server = bot.get_guild(server_id)
         portkey = parse_portkey_data(server, message)
-        Portkeys().add_portkey(portkey)
+        Portkeys().add(portkey)
         
     except ValueError as error:
         await interaction.channel.send(f"Something went very wrong here... {error}!", delete_after=10)
@@ -276,7 +276,7 @@ async def accept_portkey_for_user(interaction: Interaction, message_id: str, mem
         server = bot.get_guild(server_id)
         message = await interaction.channel.fetch_message(message_id)
         portkey = parse_portkey_data(server, message, member)
-        Portkeys().add_portkey(portkey)
+        Portkeys().add(portkey)
     
     except ValueError as error:
         await interaction.channel.send(f"Something went very wrong here... {error}!", delete_after=10)
