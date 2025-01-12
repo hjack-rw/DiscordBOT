@@ -1,8 +1,10 @@
 from src.db_classes import ExtraVariable, Portkeys
-from src.functions import send_webhook, get_image
+from src.functions import send_webhook, replace_multiple, get_image
 from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color
 
 from datetime import datetime, time, timedelta, timezone
+
+import copy
 import re
 import time as time_module
 import pytz
@@ -12,14 +14,16 @@ from discord.enums import EntityType, PrivacyLevel
 from discord.ext import tasks
 
 
-__all__ = ["morning_reminder", "club_event_reminder", "game_midnight_reminder", "midnight_reminder", "create_a_task"] 
+__all__ = ["morning_reminder", "weekly_cards_reminder", "club_events_reminder", "game_midnight_reminder", "midnight_reminder", "create_a_task"] 
 
 
-time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - exact
-                "morning":       time(hour=7,  minute=0,  second=0, tzinfo=pytz.timezone("Europe/Warsaw")),  # UTC+1 - exact
-                "club event":    time(hour=19, minute=25, second=0, tzinfo=timezone.utc),                    # UTC   - 5 min early
-                "game_midnight": time(hour=23, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 1 h early
-                "midnight":      time(hour=23, minute=0,  second=0, tzinfo=timezone.utc),}                   # UTC   - 1 h early
+time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 03:00 - exact
+                "morning":       time(hour=7,  minute=0,  second=0, tzinfo=timezone.utc),                    # UTC   - 08:00 - exact
+                "weekly_cards":  time(hour=16, minute=59,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 16:00 - exact
+                "housecup":      time(hour=19, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 18:00 - 24 h early
+                "club_events":   time(hour=19, minute=25, second=0, tzinfo=timezone.utc),                    # UTC   - 20:30 - 5 min early
+                "game_midnight": time(hour=23, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 23:00 - 1 h early
+                "midnight":      time(hour=23, minute=0,  second=0, tzinfo=timezone.utc),}                   # UTC   - 24:00 - 1 h early
 
 delete_after = {"hours":0, "minutes":0, "seconds":0}
 
@@ -28,7 +32,7 @@ weekdays = {0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday", 4:"Friday", 5:
 
 # SETTINGS
 # for testing
-# test_bot["test_tasks"] = True # overwrite if needed
+#test_bot["test_tasks"] = True # overwrite if needed
 
 if test_bot["test_tasks"]:
     now = datetime.now()
@@ -63,7 +67,8 @@ if test_bot["test_tasks"]:
 @tasks.loop(time=time_trigger["morning"])
 async def morning_reminder(server):
     today = datetime.now(tz=timezone.utc)
-    print(f'''"Morning" task running... {today}!''')
+    if test_bot["test_tasks"]:
+        print(f'''"Morning" task running... {today}!''')
 
     portkeys = Portkeys().get()
 
@@ -72,7 +77,9 @@ async def morning_reminder(server):
     else:
         birthdays = [portkey["user_id"] for portkey in portkeys if (portkey["birthday"].month == today.month) and (portkey["birthday"].day == today.day)]
 
+    # trigger on someone birthday
     if birthdays:
+
         # create birthday notification message
         embed = Embed(color=system_embed_color, description="**GOP  •  " + today.strftime("%d/%m/%Y") + "**\n")
         embed.description += f"Please, wish <@{birthdays[0]}> a **Happy Birthday** <:hugs:1256225688403447888> :heart:"
@@ -80,7 +87,7 @@ async def morning_reminder(server):
         embed.set_thumbnail(url="https://i.pinimg.com/564x/d8/48/59/d848592fca62cc100b148b5b77006248.jpg")
 
         for birthday in birthdays[1:]:
-            embed.add_field(name="", value=f"Wait! There's more...\nPlease, wish <@{birthday}> a **Happy Birthday** as well <:hugs:1256225688403447888> :heart:", inline=False)
+            embed.add_field(name="", value=f"Wait! There is more...\nPlease, wish <@{birthday}> a **Happy Birthday** as well <:hugs:1256225688403447888> :heart:", inline=False)
 
         embed.set_footer(text='''"I can see something in the stars...\nToday is a very special day!"''')
 
@@ -88,50 +95,109 @@ async def morning_reminder(server):
         await send_webhook(target_channel=channel, user_name="Prof. Trelawney", content="Mention: @everyone", embed=embed)
 
 
+# weekly_cards reminder:
+@tasks.loop(time=time_trigger["weekly_cards"])
+async def weekly_cards_reminder(server):
+    today = datetime.now(tz=pytz.timezone("Africa/Cairo"))
+    if test_bot["test_tasks"]:
+        print(f'''"Weekly Cards" task running... {today}!''')
 
-# club event reminder:
-@tasks.loop(time=time_trigger["club event"])
-async def club_event_reminder(server):
-    trigger_club_event = ExtraVariable(name="trigger_club_event")
+    # trigger on sunday (FOR STAFF ONLY!)
+    if (test_bot["test_tasks"] or today.weekday() in [0, 2, 4]):
+        link = "https://discord.com/channels/1221838993071538327/1278363571083804777/000"
 
-    if trigger_club_event.get():
-        today = datetime.now(tz=timezone.utc)
-        #print(f'''"Club event" task running... {today}!''')
+        base_event_info = {"title":          "Weekly <Free Card>!",
+                           "subtitle":       "Reminder: ",
+                           "description": f'''Map: {link}\nGo to the **001** and click on the 002 003!\n\nPick the option: **"004"**!\nYou will get 005 of the card.''',
+                           "footer":      '''"Swish and flick everyone!\nJust like we have been practicing..."''',
+                           "account":         "Prof. Flitwick",}
 
+        event_duration, start_time = (4,0,0), (17,0,0)
+        
+        if test_bot["test_tasks"] or today.weekday() == 0:
+            event_info = copy.deepcopy(base_event_info)
+            
+            event_info["image_id"] = "card_1_image"
+            event_info["title"] = "<Matagot! (rare)>"
+            
+            event_info["description"] = event_info["description"].replace("/000", "/1278841345133252662")
+            event_info["description"] = replace_multiple(event_info["description"], ["Staircase", "\nMatagot", "next to the Transfiguration Classroom", "Hand it Over to Hagrid", "1 copy"])
+            
+            if test_bot["test_tasks"]:
+                await set_event_and_notification(server, event_info, today, event_duration, start_time)
+        
+        if test_bot["test_tasks"] or today.weekday() == 2:
+            event_info = copy.deepcopy(base_event_info)
+
+            event_info["image_id"] = "card_2_image"
+            event_info["title"] = "<Book of Monsters! (rare)>"
+
+            event_info["description"] = event_info["description"].replace("/000", "/1278841654739992588")
+            event_info["description"] = replace_multiple(event_info["description"], ["History of Magic Classroom", "Book", "in the corner", "Stroke the Spine and Then Open It", "1 copy"])
+            
+            if test_bot["test_tasks"]:
+                await set_event_and_notification(server, event_info, today, event_duration, start_time)
+
+        if test_bot["test_tasks"] or today.weekday() == 4:
+            event_info = copy.deepcopy(base_event_info)
+
+            event_info["image_id"] = "card_3_image"
+            event_info["title"] = "<Cornish Pixies! (common)>"
+            
+            event_info["description"] = event_info["description"].replace("/000", "/1278842175886590078")
+            event_info["description"] = replace_multiple(event_info["description"], ["Library", "Pixies", "first bookcase row left", "Use Glacius.", "3 copies"])
+            
+            if test_bot["test_tasks"]:
+                await set_event_and_notification(server, event_info, today, event_duration, start_time)
+        
+        if not test_bot["test_tasks"]:
+            await set_event_and_notification(server, event_info, today, event_duration, start_time)
+
+
+# club_events reminder:
+@tasks.loop(time=time_trigger["club_events"])
+async def club_events_reminder(server):
+    today = datetime.now(tz=timezone.utc)
+    if test_bot["test_tasks"]:
+        print(f'''"Club Event" task running... {today}!''')
+
+    # trigger every day if variable is True
+    trigger_club_events = ExtraVariable(name="trigger_club_events")
+    if trigger_club_events.get():
+    
         event_info = {"image_id":    "event_image",
                       "title":       "GOP Club Events!",
                       "subtitle":   f"Reminder: {weekdays[today.weekday()]}!",
                       "description": "**We start 000!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance!",
-                      "location":    "HP: Magic Awakened ឵឵(Sphinx)",
                       "footer":   '''"Place your right hand on my waist and...\nOne, two, three... One, two, three..."''',
                       "account":     "Prof. McGonagall",}
         
-        await set_event_and_notification(server, event_info, event_duration=(1,0,0), start_time=(19,30,0), today=today)
+        await set_event_and_notification(server, event_info, today, event_duration=(1,0,0), start_time=(19,30,0))
     
     else:
-        trigger_club_event.change(to=True)
+        trigger_club_events.change(to=True)
 
 
 
-# game midnight reminder:
+# game_midnight reminder:
 @tasks.loop(time=time_trigger["game_midnight"])
 async def game_midnight_reminder(server):
     today = datetime.now(tz=pytz.timezone("Africa/Cairo"))
-    print(f'''"Game Midnight" task running... {datetime.now(tz=timezone.utc)}!''', today)
+    if test_bot["test_tasks"]:
+        print(f'''"Game Midnight" task running... {datetime.now(tz=timezone.utc)}!''', today)
 
+    # trigger every 2 weeks from base date
     delta = datetime(year=today.year, month=today.month, day=today.day) - ExtraVariable(name="base_date_maintenance").get()
     if (test_bot["test_tasks"] or delta.days % 14 == 0):
-        print("It's Maintenance! Notify!")
 
         event_info = {"image_id":    "maintenance_image",
                       "title":       "",
                       "subtitle":    "Reminder: <Maintenance!>",
                       "description": "**It starts 000!**\nDuring this period the game will be unavailable!",
-                      "location":    "HP: Magic Awakened ឵឵(Sphinx)",
                       "footer":   '''"Go on, scram! Or I will hanging you by your thumbs in the dungeons!"''',
                       "account":     "Mr. Filch",}
         
-        await set_event_and_notification(server, event_info, event_duration=(3,0,0), start_time=(24,0,0), today=today+timedelta(days=1))
+        await set_event_and_notification(server, event_info, today, event_duration=(3,0,0), start_time=(24,0,0))
 
 
 
@@ -139,11 +205,11 @@ async def game_midnight_reminder(server):
 @tasks.loop(time=time_trigger["midnight"])
 async def midnight_reminder(server):
     today = datetime.now(tz=timezone.utc)
-    print(f'''"Midnight" task running... {today}!''')
+    if test_bot["test_tasks"]:
+        print(f'''"Midnight" task running... {today}!''')
 
     # for staff on sunday
-    if (test_bot["test_tasks"] or today.weekday() == 6):
-        print("It's Sunday! Notify!")
+    if (test_bot["test_tasks"] or today.weekday() == 6):        
         channel = server.get_channel(channel_ids["staffroom"])
         
         embed = Embed(color=system_embed_color, description="Dear Staff,\nremember to take a picture of this week's top 3 students!\n\n(Please post the screenshots below!)")
@@ -164,7 +230,7 @@ def create_a_task(timer):
     return task_template
 
 
-def convert_to_unix_time(date: datetime, mode: str):
+def convert_to_unix_time(date:datetime, mode:str):
     # get a tuple of the date attributes
     date_tuple = (date.year, date.month, date.day, date.hour, date.minute, date.second)
 
@@ -172,7 +238,7 @@ def convert_to_unix_time(date: datetime, mode: str):
     return f'<t:{int(time_module.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
 
 
-async def set_event_and_notification(server, event_info, event_duration, start_time, today):
+async def set_event_and_notification(server, event_info, today, event_duration, start_time):
     global delete_after
     
     # for testing
@@ -200,12 +266,22 @@ async def set_event_and_notification(server, event_info, event_duration, start_t
     # get alternative title and insert timer
     if not event_info["title"]:
         event_name = re.search('<(.*)>', event_info["subtitle"]).group(1)
-        event_info["subtitle"] = event_info["subtitle"].replace("<", "").replace(">", "")
+        event_info["subtitle"] = replace_multiple(event_info["subtitle"], [("<", ""), (">", "")], self_idx=False)
+
+    elif ("<" in event_info["title"]) and (">" in event_info["title"]):
+        event_name = re.search('<(.*)>', event_info["title"]).group(1) + f": {re.search('<(.*)>', event_info['subtitle']).group(1)}"
+        event_info["title"] = replace_multiple(event_info["title"], [("<", ""), (">", "")], self_idx=False)
+        event_info["subtitle"] = replace_multiple(event_info["subtitle"], [("<", ""), (">", "")], self_idx=False)
     else:
         event_name = event_info["title"]
    
     event_info["description"] = event_info["description"].replace("000", convert_to_unix_time(date=beginning.astimezone(), mode="R"))
     
+    try:
+        event_info["location"]
+    except KeyError:
+        event_info["location"] = "HP: Magic Awakened ឵឵(Sphinx)"
+
     
     # get image
     channel = server.get_channel(channel_ids["assets"])

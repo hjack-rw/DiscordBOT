@@ -39,7 +39,8 @@ class BOT(commands.Bot):
 
         #game_reset_reminder.start(server)
         morning_reminder.start(server)
-        club_event_reminder.start(server)
+        weekly_cards_reminder.start(server)
+        club_events_reminder.start(server)
         game_midnight_reminder.start(server)
         midnight_reminder.start(server)
 

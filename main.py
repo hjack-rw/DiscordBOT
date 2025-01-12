@@ -4,12 +4,8 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! flitwick:
-# trigger on weekly cards
-# create new task
-
 #TODO! dumbledore:
-# housecup
+# housecup, enter disdisciplines system
 
 #TODO! leaderboard should post to the same channel and copy attachments (?)
 
