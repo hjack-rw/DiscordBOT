@@ -193,7 +193,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
 
 # Webhook functionality
 @bot.tree.command(name="polyjuice")
-async def send_as(interaction: Interaction, member: Optional[Member], option: Optional[Literal[tuple(custom_avatars.keys())]], say:str): # type: ignore
+async def send_as(interaction:Interaction, member:Optional[Member], option:Optional[Literal[tuple(custom_avatars.keys())]], say:str): # type: ignore
     ''' Send a message as User '''
     
     if not member and not option:
@@ -217,22 +217,22 @@ async def send_as(interaction: Interaction, member: Optional[Member], option: Op
 
 # Event handling functionality
 @bot.tree.command(name="postpone")
-async def postpone_club_event_24h(interaction: Interaction):
+async def postpone_club_event_24h(interaction:Interaction):
     ''' Postpone the next Club Event by 24h '''
     
-    trigger_club_event = ExtraVariable(name="trigger_club_event")
+    trigger_club_events = ExtraVariable(name="trigger_club_events")
 
-    if trigger_club_event_value := trigger_club_event.get():
+    if trigger_club_event_value := trigger_club_events.get():
         await interaction.response.send_message("The next Club Event will be **skipped**!", ephemeral=True)
     else:
         await interaction.response.send_message("The next Club Event will be **restored**!", ephemeral=True)
     
     # change the variable value
-    trigger_club_event.change(to=not trigger_club_event_value)
+    trigger_club_events.change(to=not trigger_club_event_value)
 
 
 @bot.tree.command(name="set_maintenance")
-async def set_maintenance_base_date(interaction: Interaction, month: Literal[tuple(months.keys())], day: int): # type: ignore
+async def set_maintenance_base_date(interaction:Interaction, month:Literal[tuple(months.keys())], day:int): # type: ignore
     ''' Set the base date for Maintenance '''
 
     today = datetime.now()
@@ -252,7 +252,7 @@ async def set_maintenance_base_date(interaction: Interaction, month: Literal[tup
 
 # Portkey handling functionality
 @bot.tree.context_menu(name="Accept Portkey")
-async def accept_portkey(interaction: Interaction, message: Message):
+async def accept_portkey(interaction:Interaction, message:Message):
     ''' Accept Portkey '''
     
     await standard_response(interaction)
@@ -267,7 +267,7 @@ async def accept_portkey(interaction: Interaction, message: Message):
 
 
 @bot.tree.command(name="accept_portkey")
-async def accept_portkey_for_user(interaction: Interaction, message_id: str, member: Member):
+async def accept_portkey_for_user(interaction:Interaction, message_id:str, member:Member):
     ''' Accept Portkey for User '''
     
     await standard_response(interaction)
@@ -286,7 +286,7 @@ async def accept_portkey_for_user(interaction: Interaction, message_id: str, mem
 
 
 @bot.tree.command(name="post_portkey")
-async def post_portkey(interaction: Interaction, id:str):
+async def post_portkey(interaction:Interaction, id:str):
     ''' Print a Portkey '''
 
     await standard_response(interaction)
@@ -303,7 +303,7 @@ async def post_portkey(interaction: Interaction, id:str):
 
 
 @bot.tree.context_menu(name="Edit Portkey")
-async def edit_portkey(interaction: Interaction, message: Message):
+async def edit_portkey(interaction:Interaction, message:Message):
     ''' Edit Portkey '''
 
     await standard_response(interaction)
