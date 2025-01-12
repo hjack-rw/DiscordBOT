@@ -26,7 +26,7 @@ async def on_member_join(new_user):
 
         embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=system_embed_color)
         embed.set_image(url="attachment://card.png")
-        embed.set_footer(text=f'''"You're a Wizard, {new_user.name}."''')
+        embed.set_footer(text=f'''"You are a Wizard, {new_user.name}."''')
         
         message = await send_webhook(target_channel=channel, user_name="Prof. Hagrid", content=f"Mention: <@{new_user.id}>", embed=embed, file=image, view=WelcomeView(user=new_user, stickers=server.stickers))
         
