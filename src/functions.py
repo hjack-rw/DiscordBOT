@@ -1,6 +1,7 @@
 from src.variables import server_id, webhook_id, custom_avatars, wait_for, absolute_path, discord_token, bot_token, system_embed_color
 
 from datetime import datetime
+from functools import reduce
 from PIL import Image, ImageFont, ImageDraw, ImageFilter
 
 import io
@@ -15,7 +16,7 @@ from discord.file import File
 from discord.utils import MISSING
 
 
-__all__ = ["standard_response", "send_command", "send_webhook", "get_image", "get_avatar", "draw_infocard", "parse_portkey_data", "print_portkey"] 
+__all__ = ["standard_response", "send_command", "send_webhook", "replace_multiple", "get_image", "get_avatar", "draw_infocard", "parse_portkey_data", "print_portkey"] 
 
 
 headers = {"authorization": f"Bot {bot_token}",
@@ -87,6 +88,14 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
         raise ValueError("FAILED TO CREATE WEBHOOK!")
 
 
+def replace_multiple(string:str, replace_list:list, self_idx=True):
+    if self_idx:
+        for idx, instance in enumerate(replace_list):
+            replace_list[idx] = (f"{idx+1}".rjust(3, "0"), instance)
+    
+    return reduce(lambda a, kv: a.replace(*kv), replace_list, string)
+
+
 def get_image(url):
     response = session.get(url,)
     return response.content
@@ -155,7 +164,7 @@ def remove_extra_characters(string, is_id=False):
     if is_id:
         return re.sub(r'''\D''', "", string)
     else:
-        return string.lstrip(" ").rstrip(" ").replace("\r", "").replace("\n", "")
+        return replace_multiple(string.lstrip(" ").rstrip(" "), [("\r", ""), ("\n", "")], self_idx=False)
     
 def parse_multiple_possibilities(value):
     if len(list := [remove_extra_characters(value) for value in value.split("|")]) == 1:
