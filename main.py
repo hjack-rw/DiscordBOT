@@ -5,8 +5,7 @@ if __name__ == '__main__':
 
 
 #TODO! flitwick:
-# trigger on weekly cards
-# create new task
+# redo screens on pc for events
 
 #TODO! dumbledore:
 # housecup
