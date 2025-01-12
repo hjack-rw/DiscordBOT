@@ -21,13 +21,13 @@ base_date = datetime(year=2000, month=1, day=1)
 __all__ = ["ExtraVariable", "WelcomeMessages", "Portkeys"]
 
 
-def convert_int_to_date(date_in_int: int):
+def convert_int_to_date(date_in_int:int):
     try:
         return base_date + timedelta(days=date_in_int)
     except TypeError:
         return None
 
-def convert_date_to_int(date: datetime):
+def convert_date_to_int(date:datetime):
     try:
         date = datetime(year=date.year, month=date.month, day=date.day)
         delta = date - base_date
@@ -45,7 +45,7 @@ def convert_permutation_to_int(permutation:tuple, requirements:list):
     return permutations.index(permutation)
 
 
-def is_binary(string: str):
+def is_binary(string:str):
     string = set(string)
     if string == {'0', '1'} or string == {'0'} or string == {'1'}:
         return True
