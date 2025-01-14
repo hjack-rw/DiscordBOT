@@ -1,9 +1,11 @@
 from src.body import bot
 from src.db_classes import ExtraVariable, Portkeys
 from src.functions import standard_response, send_command, send_webhook, get_avatar, print_portkey, parse_portkey_data
-from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color
+from src.tasks import housecup_disciplines_names
+from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color, base_housecup_date
+from src.views import DropdownView
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Literal
 
 import re
@@ -51,13 +53,14 @@ animal_rank = {0:  "Flobberworm", #100
 
 max_level = len(animal_rank) - 1
 
-house_cup = {"gryffindor": {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/1/16/Gryffindor_crest.png/revision/latest?cb=20111112232412"},
-             "hufflepuff": {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/5/5e/Hufflepuff_crest.png/revision/latest?cb=20111112232427"},
-             "ravenclaw":  {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/4/40/Ravenclaw_Crest_1.png/revision/latest?cb=20140604194505"},
-             "slytherin":  {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/4/45/Slytherin_Crest.png/revision/latest?cb=20111112232353"},}
+custom_housecup = {"gryffindor": {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/1/16/Gryffindor_crest.png/revision/latest?cb=20111112232412"},
+                   "hufflepuff": {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/5/5e/Hufflepuff_crest.png/revision/latest?cb=20111112232427"},
+                   "ravenclaw":  {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/4/40/Ravenclaw_Crest_1.png/revision/latest?cb=20140604194505"},
+                   "slytherin":  {"points": [], "all_members": 0, "link": "https://static.wikia.nocookie.net/pottermore/images/4/45/Slytherin_Crest.png/revision/latest?cb=20111112232353"},}
 
 months ={"01|January": 1, "02|February": 2, "03|March": 3, "04|April": 4, "05|May": 5, "06|June": 6, "07|July": 7, "08|August": 8, "09|September": 9, "10|October": 10, "11|November": 11, "12|December": 12}
 
+numbers = {0: "0️⃣", 1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣"}
 
 # Leaderboard functionality
 def limit(value, limit):
@@ -71,7 +74,7 @@ def get_user_exp(current_level, percent):
 
 
 @bot.tree.command(name="update_lb")
-async def update_leaderboard(interaction: Interaction, mention_all:bool, with_house_cup:bool):
+async def update_leaderboard(interaction: Interaction, mention_all:bool, with_housecup:bool):
     ''' Updates the Server's Leaderboard '''
     
     await standard_response(interaction)
@@ -104,8 +107,8 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
 
         await side_channel.purge(limit=None)
 
-        # post house cup
-        if with_house_cup:
+        # post housecup
+        if with_housecup:
             house_embed = Embed(title="The leading house is...", color=system_embed_color)
             house_message = await channel.send(content="", embed=house_embed)
 
@@ -130,7 +133,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
             exp = get_user_exp(level, percent)
 
             roles = [role.name for role in member.roles]
-            house_cup[[house for house in house_cup if house in roles][0]]["points"] += [exp]
+            custom_housecup[[house for house in custom_housecup if house in roles][0]]["points"] += [exp]
 
             if level > max_level:
                 level = max_level
@@ -154,29 +157,29 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
                 break
 
 
-        if with_house_cup:
+        if with_housecup:
             for role in server.roles:
-                if role.name in [house for house in house_cup]:
-                    house_cup[role.name]["all_members"] = len(role.members)
+                if role.name in [house for house in custom_housecup]:
+                    custom_housecup[role.name]["all_members"] = len(role.members)
             
-            all_points = sum([value["points"] for _, value in house_cup.items()], [])
+            all_points = sum([value["points"] for _, value in custom_housecup.items()], [])
             mean = statistics.mean(all_points)
             sd = statistics.stdev(all_points) if not test_bot["test_command"] else 0
             
             scoreboard = {}
-            for key,value in house_cup.items():
+            for key,value in custom_housecup.items():
                 points = [point for point in value["points"] if (point >= mean - 2*sd) and (point <= mean + 2*sd)]
                 
                 active_members = len(points) if not test_bot["test_command"] else 1
                 scoreboard[key] = sum(points) / active_members / limit(value=value["all_members"], limit=1)
 
-            winning_house = max(house_cup, key=scoreboard.get)
+            winning_house = max(custom_housecup, key=scoreboard.get)
             
             print(scoreboard)
 
             house_embed = house_message.embeds[0]
             house_embed.title = f"The leading house is... {winning_house.capitalize()}!"
-            house_embed.set_image(url=house_cup[winning_house]["link"])
+            house_embed.set_image(url=custom_housecup[winning_house]["link"])
 
             await house_message.edit(content="", embed=house_embed)
     
@@ -321,3 +324,54 @@ async def edit_portkey(interaction:Interaction, message:Message):
         await interaction.channel.send("Something went very wrong here... the Portkey you are trying to edit has not yet been accepted!", delete_after=10)
     else:
         await interaction.channel.send("Something went very wrong here... what you are trying to edit is not a Portkey!", delete_after=10)
+    
+
+@bot.tree.command(name="add_disciplines")
+async def add_disciplines(interaction:Interaction):
+    ''' Add House Cup disciplines '''
+
+    await standard_response(interaction)
+
+    required_options = 4
+    
+    options = list(housecup_disciplines_names.values())
+
+    all_picked = []
+    for idx in range(1, required_options+1):
+        view = DropdownView(options)
+        message = await interaction.channel.send(content=f"Pick the {idx}. discipline:", view=view)
+        await view.wait()
+
+        all_picked.append(view.picked)
+
+        # dropdown list gets smaller with each picked option
+        if len(all_picked) != idx:
+            all_picked.append(options.pop())
+        else:
+            options.remove(housecup_disciplines_names[all_picked[-1]])
+        
+        await message.delete()
+    
+    ExtraVariable(name="housecup_disciplines").change(to=all_picked)
+
+
+@bot.tree.command(name="is_house_cup_this_week")
+async def is_housecup_this_week(interaction:Interaction):
+    ''' Informs you if there will be a House Cup this week '''
+
+    today = datetime.now(tz=timezone.utc)
+
+    if (today.weekday() == 6):
+        trigger = False
+    else:
+        next_saturday = datetime(year=today.year, month=today.month, day=today.day) + timedelta(days=5-today.weekday())
+        
+        delta = next_saturday - (base_housecup_date + timedelta(days=1))
+        if trigger := (delta.days % 14 == 0):
+            housecup_disciplines = ExtraVariable(name="housecup_disciplines")
+            discipline = housecup_disciplines.get()[int(delta.days / 14) % 4]
+    
+    if trigger:
+        await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup this week!", ephemeral=True)
+    else:
+        await interaction.response.send_message("There's **NO** House Cup this week!", ephemeral=True)

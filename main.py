@@ -4,9 +4,6 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! dumbledore:
-# housecup, enter disdisciplines system
-
 #TODO! leaderboard should post to the same channel and copy attachments (?)
 
 #TODO! portkey:

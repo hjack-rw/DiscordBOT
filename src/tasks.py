@@ -1,6 +1,6 @@
 from src.db_classes import ExtraVariable, Portkeys
 from src.functions import send_webhook, replace_multiple, get_image
-from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color
+from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color, base_housecup_date
 
 from datetime import datetime, time, timedelta, timezone
 
@@ -14,12 +14,13 @@ from discord.enums import EntityType, PrivacyLevel
 from discord.ext import tasks
 
 
-__all__ = ["morning_reminder", "weekly_cards_reminder", "club_events_reminder", "game_midnight_reminder", "midnight_reminder", "create_a_task"] 
+__all__ = ["housecup_disciplines_names", "morning_reminder", "weekly_cards_reminder", "housecup_reminder", "club_events_reminder", "game_midnight_reminder", "midnight_reminder", "create_a_task"] 
 
 
 time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 03:00 - exact
                 "morning":       time(hour=7,  minute=0,  second=0, tzinfo=timezone.utc),                    # UTC   - 08:00 - exact
                 "weekly_cards":  time(hour=17, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 16:00 - exact
+                "housecup":      time(hour=19, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 18:00 - 24 h early
                 "club_events":   time(hour=19, minute=25, second=0, tzinfo=timezone.utc),                    # UTC   - 20:30 - 5 min early
                 "game_midnight": time(hour=23, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 23:00 - 1 h early
                 "midnight":      time(hour=23, minute=0,  second=0, tzinfo=timezone.utc),}                   # UTC   - 24:00 - 1 h early
@@ -27,6 +28,13 @@ time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.
 delete_after = {"hours":0, "minutes":0, "seconds":0}
 
 weekdays = {0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
+
+housecup_disciplines_names = {0: "Best Partners",
+                              1: "Dance Club",
+                              2: "Top Wizard",
+                              3: "History of Magic",
+                              4: "Muggle Studies",
+                              5: "Casual Matches"}
 
 
 # SETTINGS
@@ -105,8 +113,7 @@ async def weekly_cards_reminder(server):
     if (test_bot["test_tasks"] or today.weekday() in [0, 2, 4]):
         link = "https://discord.com/channels/1221838993071538327/1278363571083804777/000"
 
-        base_event_info = {"title":          "Weekly <Free Card>!",
-                           "subtitle":       "Reminder: ",
+        base_event_info = {"subtitle":       "Reminder: Weekly <Free Card>!",
                            "description": f'''Map: {link}\nGo to the **001** and click on the 002 003!\n\nPick the option: **"004"**!\nYou will get 005 of the card.''',
                            "footer":      '''"Swish and flick everyone!\nJust like we have been practicing..."''',
                            "account":         "Prof. Flitwick",}
@@ -153,6 +160,35 @@ async def weekly_cards_reminder(server):
             await set_event_and_notification(server, event_info, today, event_duration, start_time)
 
 
+# housecup reminder:
+@tasks.loop(time=time_trigger["housecup"])
+async def housecup_reminder(server):
+    today = datetime.now(tz=timezone.utc)
+    if test_bot["test_tasks"]:
+        print(f'''"Housecup" task running... {today}!''')
+    
+    # trigger every 2 weeks from base date
+    delta = datetime(year=today.year, month=today.month, day=today.day) - base_housecup_date
+    if (test_bot["test_tasks"] or delta.days % 14 == 0):
+        
+        housecup_disciplines = ExtraVariable(name="housecup_disciplines")
+
+        discipline = housecup_disciplines.get()[int(delta.days / 14) % 4]
+
+        event_info = {"image_id":    "housecup_image",
+                      "title":      f"<{housecup_disciplines_names[discipline]}!>",
+                      "subtitle":    "Reminder: <House Cup>!",
+                      "description": "Make sure to represent your House!\nAnd may the best one win!",
+                      "footer":   '''"Did you put your name for the House Cup yet?!" he asked calmly.''',
+                      "account":     "Prof. Dumbledore",}
+        
+        await set_event_and_notification(server, event_info, today+timedelta(days=1), event_duration=(2,0,0), start_time=(19,0,0))
+
+        # default (0, 1, 2, 3)
+        if discipline == 3:
+            housecup_disciplines.change(to=(0, 1, 2, 3))
+
+
 # club_events reminder:
 @tasks.loop(time=time_trigger["club_events"])
 async def club_events_reminder(server):
@@ -173,6 +209,7 @@ async def club_events_reminder(server):
         
         await set_event_and_notification(server, event_info, today, event_duration=(1,0,0), start_time=(19,30,0))
     
+    # default True
     else:
         trigger_club_events.change(to=True)
 
@@ -196,7 +233,7 @@ async def game_midnight_reminder(server):
                       "footer":   '''"Go on, scram! Or I will hanging you by your thumbs in the dungeons!"''',
                       "account":     "Mr. Filch",}
         
-        await set_event_and_notification(server, event_info, today, event_duration=(3,0,0), start_time=(24,0,0))
+        await set_event_and_notification(server, event_info, today+timedelta(days=1), event_duration=(3,0,0), start_time=(24,0,0))
 
 
 
@@ -237,7 +274,7 @@ def convert_to_unix_time(date:datetime, mode:str):
     return f'<t:{int(time_module.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
 
 
-async def set_event_and_notification(server, event_info, today, event_duration, start_time):
+async def set_event_and_notification(server, event_info, trigger_day, event_duration, start_time):
     global delete_after
     
     # for testing
@@ -246,15 +283,15 @@ async def set_event_and_notification(server, event_info, today, event_duration, 
         ending    = beginning + timedelta(minutes=after_minutes)
         duration  = f"~{after_minutes} minutes"
     else:
-        delete_after["hours"]   = event_duration[0] + (start_time[0] - today.hour)
-        delete_after["minutes"] = event_duration[1] + (start_time[1] - today.minute)
-        delete_after["seconds"] = event_duration[2] + (start_time[2] - today.second)
+        delete_after["hours"]   = event_duration[0] + (start_time[0] - trigger_day.hour)
+        delete_after["minutes"] = event_duration[1] + (start_time[1] - trigger_day.minute)
+        delete_after["seconds"] = event_duration[2] + (start_time[2] - trigger_day.second)
         
         delete_after = {key:(value if value > 0 else 0) for key,value in delete_after.items()}
         
-        beginning = today.replace(hour  =(start_time[0] % 24),
-                                  minute=(start_time[1] % 60),
-                                  second=(start_time[2] % 60),)
+        beginning = trigger_day.replace(hour  =(start_time[0] % 24),
+                                        minute=(start_time[1] % 60),
+                                        second=(start_time[2] % 60),)
         
         ending = beginning + timedelta(hours=event_duration[0], minutes=event_duration[1], seconds=event_duration[2])
         
@@ -268,7 +305,7 @@ async def set_event_and_notification(server, event_info, today, event_duration, 
         event_info["subtitle"] = replace_multiple(event_info["subtitle"], [("<", ""), (">", "")], self_idx=False)
 
     elif ("<" in event_info["title"]) and (">" in event_info["title"]):
-        event_name = re.search('<(.*)>', event_info["title"]).group(1) + f": {re.search('<(.*)>', event_info['subtitle']).group(1)}"
+        event_name = re.search('<(.*)>', event_info["subtitle"]).group(1) + f": {re.search('<(.*)>', event_info['title']).group(1)}"
         event_info["title"] = replace_multiple(event_info["title"], [("<", ""), (">", "")], self_idx=False)
         event_info["subtitle"] = replace_multiple(event_info["subtitle"], [("<", ""), (">", "")], self_idx=False)
     else:
