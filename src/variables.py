@@ -1,5 +1,6 @@
 from pre_init import test_bot
 
+from datetime import datetime
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -10,7 +11,7 @@ load_dotenv(dotenv_path=Path(path + "env"))
 
 
 __all__ = ["absolute_path", "test_bot", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "wait_for",
-           "discord_token", "bot_token", "system_embed_color"] 
+           "discord_token", "bot_token", "system_embed_color", "base_housecup_date"] 
 
 
 absolute_path = path
@@ -43,3 +44,4 @@ wait_for = 3 # seconds
 discord_token = os.getenv("DISCORD_TOKEN")
 bot_token = os.getenv("DISCORD_BOT_TOKEN")
 system_embed_color = 16777215
+base_housecup_date = datetime(year=2025, month=1, day=10)

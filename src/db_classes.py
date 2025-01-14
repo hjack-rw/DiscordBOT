@@ -64,9 +64,13 @@ class Permutation:
         self.max_idx      = max_idx
         self.len_instance = len(instance)
         self.instance     = instance
+        self.type         = type(instance)
     
     def check(self):
-        return (len(set(self.instance)) == self.len_instance) and (max(self.instance) < self.max_idx)
+        test_1 = (self.type == type(self.instance))
+        test_2 = (self.len_instance == len(self.instance))
+        test_3 = (self.max_idx > max(self.instance))
+        return test_1 and test_2 and test_3
 
 
 class Database():
@@ -90,7 +94,7 @@ class Database():
             if type(old_value) != type(new_value):
                 raise Exception("Mismatched datatypes!")
             elif type(old_value) == Permutation:
-                if type(old_value.instance) != type(new_value.instance) or not new_value.check():
+                if not new_value.check():
                     raise Exception("Mismatched datatypes!")
         except Exception as exception:
             print(exception)
