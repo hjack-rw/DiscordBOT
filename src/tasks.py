@@ -19,7 +19,7 @@ __all__ = ["housecup_disciplines_names", "morning_reminder", "weekly_cards_remin
 
 time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 03:00 - exact
                 "morning":       time(hour=7,  minute=0,  second=0, tzinfo=timezone.utc),                    # UTC   - 08:00 - exact
-                "weekly_cards":  time(hour=17, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 16:00 - exact
+                "weekly_cards":  time(hour=16, minute=59,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 16:00 - exact
                 "housecup":      time(hour=19, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 18:00 - 24 h early
                 "club_events":   time(hour=19, minute=25, second=0, tzinfo=timezone.utc),                    # UTC   - 20:30 - 5 min early
                 "game_midnight": time(hour=23, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 23:00 - 1 h early
