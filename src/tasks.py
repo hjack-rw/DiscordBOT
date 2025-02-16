@@ -167,12 +167,12 @@ async def housecup_reminder(server):
     if test_bot["test_tasks"]:
         print(f'''"Housecup" task running... {today}!''')
     
+    housecup_disciplines = ExtraVariable(name="housecup_disciplines")
+    housecup_reset = ExtraVariable(name="housecup_reset")
+
     # trigger every 2 weeks from base date
     delta = datetime(year=today.year, month=today.month, day=today.day) - base_housecup_date
     if (test_bot["test_tasks"] or delta.days % 14 == 0):
-        
-        housecup_disciplines = ExtraVariable(name="housecup_disciplines")
-
         discipline = housecup_disciplines.get()[int(delta.days / 14) % 4]
 
         event_info = {"image_id":    "housecup_image",
@@ -182,11 +182,15 @@ async def housecup_reminder(server):
                       "footer":   '''"Did you put your name for the House Cup yet?!" he asked calmly.''',
                       "account":     "Prof. Dumbledore",}
         
-        await set_event_and_notification(server, event_info, today+timedelta(days=1), event_duration=(2,0,0), start_time=(19,0,0))
+        await set_event_and_notification(server, event_info, today, time_delta=1, event_duration=(2,0,0), start_time=(19,0,0))
 
-        # default (0, 1, 2, 3)
-        if discipline == 3:
-            housecup_disciplines.change(to=(0, 1, 2, 3))
+        if (not test_bot["test_tasks"] and housecup_disciplines.get().index(discipline) == 3):
+            housecup_reset.change(to=True)
+
+    # reset to default (0, 1, 2, 3)    
+    elif (delta.days % 14 == 2 and housecup_reset.get()):
+        housecup_disciplines.change(to=(0, 1, 2, 3))
+        housecup_reset.change(to=False)
 
 
 # club_events reminder:
@@ -233,7 +237,7 @@ async def game_midnight_reminder(server):
                       "footer":   '''"Go on, scram! Or I will hanging you by your thumbs in the dungeons!"''',
                       "account":     "Mr. Filch",}
         
-        await set_event_and_notification(server, event_info, today+timedelta(days=1), event_duration=(3,0,0), start_time=(24,0,0))
+        await set_event_and_notification(server, event_info, today, time_delta=1, event_duration=(3,0,0), start_time=(24,0,0))
 
 
 
@@ -274,8 +278,10 @@ def convert_to_unix_time(date:datetime, mode:str):
     return f'<t:{int(time_module.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
 
 
-async def set_event_and_notification(server, event_info, trigger_day, event_duration, start_time):
+async def set_event_and_notification(server, event_info, trigger_day, event_duration, start_time, time_delta=0):
     global delete_after
+    if time_delta:
+        trigger_day + timedelta(days=time_delta)
     
     # for testing
     if test_bot["test_tasks"]:
@@ -283,11 +289,9 @@ async def set_event_and_notification(server, event_info, trigger_day, event_dura
         ending    = beginning + timedelta(minutes=after_minutes)
         duration  = f"~{after_minutes} minutes"
     else:
-        delete_after["hours"]   = event_duration[0] + (start_time[0] - trigger_day.hour)
+        delete_after["hours"]   = event_duration[0] + (start_time[0] - trigger_day.hour)   + (time_delta * 24)
         delete_after["minutes"] = event_duration[1] + (start_time[1] - trigger_day.minute)
         delete_after["seconds"] = event_duration[2] + (start_time[2] - trigger_day.second)
-        
-        delete_after = {key:(value if value > 0 else 0) for key,value in delete_after.items()}
         
         beginning = trigger_day.replace(hour  =(start_time[0] % 24),
                                         minute=(start_time[1] % 60),
