@@ -287,8 +287,6 @@ async def set_event_and_notification(server, event_info, trigger_day, event_dura
         delete_after["minutes"] = event_duration[1] + (start_time[1] - trigger_day.minute)
         delete_after["seconds"] = event_duration[2] + (start_time[2] - trigger_day.second)
         
-        delete_after = {key:(value if value > 0 else 0) for key,value in delete_after.items()}
-        
         beginning = trigger_day.replace(hour  =(start_time[0] % 24),
                                         minute=(start_time[1] % 60),
                                         second=(start_time[2] % 60),)
