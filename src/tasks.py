@@ -1,6 +1,6 @@
 from src.db_classes import ExtraVariable, Portkeys
 from src.functions import send_webhook, replace_multiple, get_image
-from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color, base_housecup_date
+from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color, base_housecup_date, wait_for
 
 from datetime import datetime, time, timedelta, timezone
 
@@ -43,7 +43,7 @@ housecup_disciplines_names = {0: "Best Partners",
 
 if test_bot["test_tasks"]:
     now = datetime.now()
-    after_minutes = 2
+    after_minutes = wait_for
     delete_after["minutes"] = after_minutes * 2
 
     # replace time
