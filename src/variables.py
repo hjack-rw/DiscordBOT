@@ -22,7 +22,6 @@ webhook_id = 1310623344122531851
 channel_ids = {"welcome":           1221838993071538330,
                "assets":            1317172237572509787,
                "testing":           1287909744409055272,
-               "leaderboard_side":  1305917108642910258,
                "headmasters":       1255614086033575977,
                "staffroom":         1283404834804076587,
                "announcements":     1222126723902996480,
