@@ -1,8 +1,8 @@
 from src.body import bot
 from src.db_classes import ExtraVariable, Portkeys
-from src.functions import standard_response, send_command, send_webhook, get_avatar, print_portkey, parse_portkey_data
+from src.functions import standard_response, send_command, send_webhook, get_avatar, get_json_info, print_portkey, parse_portkey_data
 from src.tasks import housecup_disciplines_names
-from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color, base_housecup_date
+from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color, base_housecup_date, wait_for
 from src.views import DropdownView
 
 from datetime import datetime, timedelta, timezone
@@ -10,6 +10,7 @@ from typing import Optional, Literal
 
 import re
 import statistics
+import time
 
 from discord.embeds import Embed
 from discord.errors import NotFound
@@ -62,50 +63,38 @@ months ={"01|January": 1, "02|February": 2, "03|March": 3, "04|April": 4, "05|Ma
 
 numbers = {0: "0️⃣", 1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣"}
 
+
 # Leaderboard functionality
 def limit(value, limit):
     return value if value else limit
 
-def get_exp(user_level, total_exp):
-    return sum([(5 * (lvl ** 2) + (50 * lvl) + 100) for lvl in range(user_level)]) if total_exp else (5 * (user_level ** 2) + (50 * user_level) + 100)
+async def wait_till_posted(channel, idx):
+    while len([message async for message in channel.history(limit=None)]) != idx:
+        print("waiting...")
 
-def get_user_exp(current_level, percent):    
-    return get_exp(current_level, total_exp=False)*percent/100 + get_exp(current_level, total_exp=True)
-
+        if test_bot["test_command"]:
+            break
 
 @bot.tree.command(name="update_lb")
-async def update_leaderboard(interaction: Interaction, mention_all:bool, with_housecup:bool):
+async def update_leaderboard(interaction: Interaction, mention_all:bool, with_housecup:bool, url:str):
+    if test_bot["test_tasks"]:
+        time.sleep(wait_for)
+    
     ''' Updates the Server's Leaderboard '''
     
     await standard_response(interaction)
 
     server = bot.get_guild(server_id)
     channel = server.get_channel(channel_ids["leaderboard"])
-    side_channel = server.get_channel(channel_ids["leaderboard_side"])
 
     try:
-        send_command(target_channel_id=channel_ids["leaderboard_side"], app_id=1035970092284002384, version=1240001014564913213, id=1035972545276555395, command="rank", options=[{"type":6, "name":"user", "value":385899007991480321},{"type":5, "name":"showoff", "value":False}])
+        await send_command(target_channel_id=channel_ids["leaderboard"], app_id=1035970092284002384, version=1333153431992664217, id=1035972545276555395, command="rank", options=[{"type":6, "name":"user", "value":385899007991480321},{"type":5, "name":"show_off", "value":False}])
+
+        # get leaderboard info
+        data = sorted(get_json_info(url),key=lambda x: x["xp"], reverse=True)
 
         # clear all channels
         await channel.purge(limit=None)
-        await side_channel.purge(limit=None)
-
-        # get leaderboard info
-        page = 0
-        while len([message async for message in side_channel.history(limit=None) if message.author.id == 1035970092284002384]) == page:
-            print("waiting...")
-
-            page += 1
-            send_command(target_channel_id=channel_ids["leaderboard_side"], app_id=1035970092284002384, version=1240001014564913214, id=1071163634492919920,  command="leaderboard", options=[{"type":4, "name":"page", "value":page}, {"type":5, "name":"show_off", "value":True}])
-
-            if test_bot["test_command"]:
-                break
-        
-        user_ids = []
-        for message in [message async for message in side_channel.history(limit=None) if message.author.id == 1035970092284002384][::-1]:
-            user_ids += re.findall(r'''\<@\s*\+?(-?\d+)\s*\>''', message.content)
-
-        await side_channel.purge(limit=None)
 
         # post housecup
         if with_housecup:
@@ -113,27 +102,33 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
             house_message = await channel.send(content="", embed=house_embed)
 
         # post leaderboard info
-        for idx, user in enumerate(user_ids, 1):
-            send_command(target_channel_id=channel_ids["leaderboard_side"], app_id=1035970092284002384, version=1240001014564913213, id=1035972545276555395, command="rank", options=[{"type":6, "name":"user", "value":user},{"type":5, "name":"showoff", "value":True}])
+        for i, user in enumerate(data, 1):
+            
+            # proper index: 11/10, 01, 00
+            if mention_all:
+                idx = i * 2 - (not with_housecup)
+            elif with_housecup:
+                idx = i + 1
+            else:
+                idx = i
 
-            while len([message async for message in side_channel.history(limit=None)]) != idx:
-                print("waiting...")
+            await send_command(target_channel_id=channel_ids["leaderboard"], app_id=1035970092284002384, version=1333153431992664217, id=1035972545276555395, command="rank", options=[{"type":6, "name":"user", "value":user["id"]},{"type":5, "name":"show_off", "value":True}])
+            await wait_till_posted(channel, idx)
 
-                if test_bot["test_command"]:
-                    break
-        
-            last_message = [message async for message in side_channel.history(limit=1)][0]
-                    
-            member = server.get_member(int(user))
-
+            last_message = [message async for message in channel.history(limit=1)][0]
+            
             progress = last_message.attachments[0]
             level = int(re.findall(pattern=r'''l\s*\+?(-?\d+)\s\(''', string=progress.description)[0])
-
-            percent = int(re.findall(pattern=r'''\s*\+?(-?\d+)%''', string=progress.description)[0])
-            exp = get_user_exp(level, percent)
-
+        
+            member = server.get_member(int(user["id"]))
+            
+            if member is None:
+                await send_command(target_channel_id=channel_ids["leaderboard"], app_id=1035970092284002384, version=1333153431992664217, id=1036034574901313566, command="reset", options=[{"type":6, "name":"user", "value":user["id"]}])
+                continue
+            
             roles = [role.name for role in member.roles]
-            custom_housecup[[house for house in custom_housecup if house in roles][0]]["points"] += [exp]
+            
+            custom_housecup[[house for house in custom_housecup if house in roles][0]]["points"] += [user["xp"]]
 
             if level > max_level:
                 level = max_level
@@ -145,11 +140,15 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
             else:
                 color = 5198940
 
-
+            file = await progress.to_file()
             embed = Embed(title=animal_string, color=color)
-            embed.set_image(url=progress.url)
+            embed.set_image(url=f"attachment://{file.filename}")
 
-            await channel.send(content="", embed=embed)
+            await channel.send(content="", embed=embed, file=file)
+            await wait_till_posted(channel, idx+1)
+                        
+            await last_message.delete()
+            
             if mention_all:
                 await channel.send(content=f"<@{user}>")
 
@@ -186,12 +185,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool, with_ho
         print("done")
     
     except ValueError as error:
-        await interaction.channel.send("Something went very wrong here... a server restart might be in order!", delete_after=10)
-        print(error)
-    
-    except IndexError as error:
-        await interaction.channel.send("Something went very wrong here... check the Experienced source leaderboard!", delete_after=10)
-        print(error)
+        await interaction.channel.send(f"Something went very wrong here... {error}!", delete_after=10)
 
 
 # Webhook functionality

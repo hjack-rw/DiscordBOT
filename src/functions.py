@@ -5,6 +5,7 @@ from functools import reduce
 from PIL import Image, ImageFont, ImageDraw, ImageFilter
 
 import io
+import json
 import re
 import time
 
@@ -16,7 +17,7 @@ from discord.file import File
 from discord.utils import MISSING
 
 
-__all__ = ["standard_response", "send_command", "send_webhook", "replace_multiple", "get_image", "get_avatar", "draw_infocard", "parse_portkey_data", "print_portkey"] 
+__all__ = ["standard_response", "send_command", "send_webhook", "replace_multiple", "get_image", "get_avatar", "draw_infocard", "get_json_info", "parse_portkey_data", "print_portkey"] 
 
 
 headers = {"authorization": f"Bot {bot_token}",
@@ -43,16 +44,16 @@ async def standard_response(interaction):
     await interaction.response.send_message("A wizard must show patience... please, wait for the command to finish!", ephemeral=True)
 
 
-def send_command(target_channel_id, app_id, version, id, command, options=[]):
+async def send_command(target_channel_id, app_id, version, id, command, options=[]):
     payload = {"type":2,
-               "application_id":app_id,
-               "guild_id":server_id,
-               "channel_id":target_channel_id,
-               "session_id":"98f3ba46da80ad7b5c2735ecb19af45d",
-               "data":{"version":version, "id":id, "name":command, "options": options}}
+               "application_id":str(app_id),
+               "guild_id":str(server_id),
+               "channel_id":str(target_channel_id),
+               "session_id":"3794653e1bf277766e6356b596fd495d",
+               "data":{"version":str(version), "id":str(id), "name":command, "type":1, "options": options}}
     
     # overwrite headers
-    headers = {"authorization": f"{discord_token}",
+    headers = {"authorization": str(discord_token),
                "content-type": "application/json",}
 
     response = session.post(url="https://discord.com/api/v9/interactions", json=payload, headers=headers,)
@@ -152,6 +153,15 @@ def draw_infocard(new_user, all_members):
     bytes.seek(0)
     
     return File(bytes, filename="card.png")
+
+
+def get_json_info(url):
+    response = requests.get(url) # create HTTP response object 
+
+    try:
+        return json.loads(response.content)
+    except:
+        raise ValueError("NO JSON FILE FOUND!")
 
 
 def get_member_id_by_nick(server, nick):

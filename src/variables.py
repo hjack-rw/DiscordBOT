@@ -22,7 +22,6 @@ webhook_id = 1310623344122531851
 channel_ids = {"welcome":           1221838993071538330,
                "assets":            1317172237572509787,
                "testing":           1287909744409055272,
-               "leaderboard_side":  1305917108642910258,
                "headmasters":       1255614086033575977,
                "staffroom":         1283404834804076587,
                "announcements":     1222126723902996480,
@@ -40,7 +39,7 @@ custom_avatars = {"Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypo
                   "Prof. Flitwick":   "https://www.superherodb.com/pictures2/portraits/10/050/13801.jpg?v=1637971200",
                   "Mr. Filch":        "https://www.tafce.com/images/c/c6/Mr_Filch_HPATGOF_-_Edited.png",}
 
-wait_for = 3 # seconds
+wait_for = 2 # seconds
 discord_token = os.getenv("DISCORD_TOKEN")
 bot_token = os.getenv("DISCORD_BOT_TOKEN")
 system_embed_color = 16777215

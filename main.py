@@ -4,16 +4,18 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! leaderboard should post to the same channel and copy attachments (?)
-
-#TODO! portkey:
-#automatic add to online word document (?)
-
 #TODO! list all members of a house
 # each house a page. buttons to turn pages (?)
 
-#TODO! subscription based system:
-# pick a role / clear all roles on button
+#TODO! subscription system:
+# pick a subscription / clear all subscriptions on button. add the role to members before the event
+# IMPORTANT: check if clearing the role keeps the notification!
+
+#TODO! portkey:
+#automatic add to a paste service
+
+#TODO! create own custom cards for leaderboard:
+# chocolate frog theme, with house colors
 
 #TODO! sprout:
 # trigger on herbology related stuff:
