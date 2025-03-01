@@ -1,9 +1,9 @@
 from src.body import bot
 from src.db_classes import ExtraVariable, Portkeys
-from src.functions import standard_response, send_command, send_webhook, get_avatar, get_json_info, print_portkey, parse_portkey_data
+from src.functions import standard_response, send_command, send_webhook, get_avatar, get_json_info, print_portkey, parse_portkey_data, print_house_members
 from src.tasks import housecup_disciplines_names
 from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color, base_housecup_date, wait_for
-from src.views import DropdownView
+from src.views import DropdownView, MemberView
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Literal
@@ -369,3 +369,16 @@ async def is_housecup_this_week(interaction:Interaction):
         await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup this week!", ephemeral=True)
     else:
         await interaction.response.send_message("There's **NO** House Cup this week!", ephemeral=True)
+
+
+@bot.tree.command(name="house_members")
+async def house_members(interaction:Interaction):
+    ''' Prints a list of members of each House '''
+    
+    await standard_response(interaction)
+    minutes = 10
+    
+    server = bot.get_guild(server_id)
+
+    message = await interaction.channel.send(content="", embed=print_house_members(server.members, page=0, filter=0), delete_after=60*minutes)
+    await message.edit(view=MemberView(server.members, message))
