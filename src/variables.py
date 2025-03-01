@@ -10,7 +10,7 @@ path = os.getcwd() + "/src/"
 load_dotenv(dotenv_path=Path(path + "env"))
 
 
-__all__ = ["absolute_path", "test_bot", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "wait_for",
+__all__ = ["absolute_path", "test_bot", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "houses", "wait_for",
            "discord_token", "bot_token", "system_embed_color", "base_housecup_date"] 
 
 
@@ -24,6 +24,7 @@ channel_ids = {"welcome":           1221838993071538330,
                "testing":           1287909744409055272,
                "headmasters":       1255614086033575977,
                "staffroom":         1283404834804076587,
+               "sorting-hat":       1256982350802190426,
                "announcements":     1222126723902996480,
                "portkey-arrival":   1281357645902512168,
                "leaderboard":       1305540120631447654,
@@ -38,6 +39,12 @@ custom_avatars = {"Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypo
                   "Prof. Trelawney":  "https://www.tafce.com/images/thumb/9/9b/Professor_Sybil_Trelawney_HPATOOTP_-_Edited.png/350px-Professor_Sybil_Trelawney_HPATOOTP_-_Edited.png",
                   "Prof. Flitwick":   "https://www.superherodb.com/pictures2/portraits/10/050/13801.jpg?v=1637971200",
                   "Mr. Filch":        "https://www.tafce.com/images/c/c6/Mr_Filch_HPATGOF_-_Edited.png",}
+
+houses = {"gryffindor": "<:gryffindor:1255656359190462484> Gryffindor",
+          "hufflepuff": "<:hufflepuff:1255656360780238849> Hufflepuff",
+          "ravenclaw" : "<:ravenclaw:1255656362617212999> Ravenclaw",
+          "slytherin" : "<:slytherin:1255656364244729856> Slytherin",
+          "BOTS"      : ""}
 
 wait_for = 2 # seconds
 discord_token = os.getenv("DISCORD_TOKEN")

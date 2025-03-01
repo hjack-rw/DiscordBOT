@@ -281,7 +281,7 @@ def convert_to_unix_time(date:datetime, mode:str):
 async def set_event_and_notification(server, event_info, trigger_day, event_duration, start_time, time_delta=0):
     global delete_after
     if time_delta:
-        trigger_day + timedelta(days=time_delta)
+        trigger_day += timedelta(days=time_delta)
     
     # for testing
     if test_bot["test_tasks"]:

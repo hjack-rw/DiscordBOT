@@ -1,4 +1,4 @@
-from src.variables import server_id, webhook_id, custom_avatars, wait_for, absolute_path, discord_token, bot_token, system_embed_color
+from src.variables import server_id, webhook_id, custom_avatars, houses, wait_for, absolute_path, discord_token, bot_token, system_embed_color
 
 from datetime import datetime
 from functools import reduce
@@ -17,7 +17,7 @@ from discord.file import File
 from discord.utils import MISSING
 
 
-__all__ = ["standard_response", "send_command", "send_webhook", "replace_multiple", "get_image", "get_avatar", "draw_infocard", "get_json_info", "parse_portkey_data", "print_portkey"] 
+__all__ = ["standard_response", "send_command", "send_webhook", "replace_multiple", "get_image", "get_avatar", "draw_infocard", "get_json_info", "parse_portkey_data", "print_portkey", "print_house_members"] 
 
 
 headers = {"authorization": f"Bot {bot_token}",
@@ -156,7 +156,8 @@ def draw_infocard(new_user, all_members):
 
 
 def get_json_info(url):
-    response = requests.get(url) # create HTTP response object 
+    # create HTTP response object 
+    response = requests.get(url)
 
     try:
         return json.loads(response.content)
@@ -249,12 +250,6 @@ def print_portkey(server, portkey):
 
     
     doc_url = "https://docs.google.com/document/d/1CJMk8wJZkYnXG729xHGPvsyaj5BtrXMZeqlIOV_4qtA/edit?usp=sharing"
-
-    houses = {"gryffindor": "<:gryffindor:1255656359190462484> Gryffindor",
-              "hufflepuff": "<:hufflepuff:1255656360780238849> Hufflepuff",
-              "ravenclaw":  "<:ravenclaw:1255656362617212999> Ravenclaw",
-              "slytherin":  "<:slytherin:1255656364244729856> Slytherin",
-              "BOTS":       ""}
     
     form_answers_extended = [f"{answer}\n\n" for answer in form_answers]
     form_answers_extended += [f"{portkey['additional_info']}\n\n"]
@@ -262,7 +257,7 @@ def print_portkey(server, portkey):
 
     embed = Embed(color=color, description=f"**User:** <@{portkey['user_id']}>")
     
-    line_1 = f"{member.nick if member.nick else member.global_name} | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
+    line_1 = f"{member.nick or member.global_name} | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
     embed.add_field(name="1. Hello, I'm... | And my ID is...", value=line_1, inline=True)
 
     line_2 = houses[[house for house in houses if house in roles][0]]
@@ -285,3 +280,29 @@ def print_portkey(server, portkey):
     embed.set_footer(text=f"GOP  •  Portkey #{portkey['id']}")
 
     return embed
+
+
+def print_house_members(members, page, filter):
+    
+    # filter by house and group
+    house = list(houses.keys())[page]
+    group = ["gop", "guest", "cross guild"][filter]
+
+    _ = "\n"
+
+    users = []
+    for member in members:
+        roles = [role.name for role in member.roles]
+
+        if house in roles and group in roles:
+            users += [member]
+
+    users = sorted(users, key=lambda x: (x.nick or x.global_name))
+    
+    i = 1
+    for idx, user in enumerate(users):
+        if user:
+            users[idx] = f"{f'**{group.capitalize()}:**{_}' if (i == 1) else ''}{idx}. {user.nick or user.global_name} - <@{user.id}>"
+            i += 1
+
+    return Embed(color=system_embed_color, title=houses[house], description="\n".join(users))
