@@ -4,18 +4,17 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! list all members of a house
-# each house a page. buttons to turn pages (?)
+#TODO! house picking system and change nickname
 
 #TODO! subscription system:
 # pick a subscription / clear all subscriptions on button. add the role to members before the event
 # IMPORTANT: check if clearing the role keeps the notification!
 
-#TODO! portkey:
-#automatic add to a paste service
-
 #TODO! create own custom cards for leaderboard:
 # chocolate frog theme, with house colors
+
+#TODO! portkey:
+# automatic add to a paste service
 
 #TODO! sprout:
 # trigger on herbology related stuff:
