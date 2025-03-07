@@ -34,7 +34,8 @@ housecup_disciplines_names = {0: "Best Partners",
                               2: "Top Wizard",
                               3: "History of Magic",
                               4: "Muggle Studies",
-                              5: "Casual Matches"}
+                              5: "Casual Matches",
+                              6: "Qudditch",}
 
 
 # SETTINGS
