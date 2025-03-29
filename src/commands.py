@@ -61,8 +61,6 @@ custom_housecup = {"gryffindor": {"points": [], "all_members": 0, "link": "https
 
 months ={"01|January": 1, "02|February": 2, "03|March": 3, "04|April": 4, "05|May": 5, "06|June": 6, "07|July": 7, "08|August": 8, "09|September": 9, "10|October": 10, "11|November": 11, "12|December": 12}
 
-numbers = {0: "0️⃣", 1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣"}
-
 
 # Leaderboard functionality
 def limit(value, limit):
@@ -77,11 +75,11 @@ async def wait_till_posted(channel, idx):
 
 @bot.tree.command(name="update_lb")
 async def update_leaderboard(interaction: Interaction, mention_all:bool, with_housecup:bool, url:str):
+    ''' Updates the Server's Leaderboard '''
+
     if test_bot["test_tasks"]:
         time.sleep(wait_for)
-    
-    ''' Updates the Server's Leaderboard '''
-    
+
     await standard_response(interaction)
 
     server = bot.get_guild(server_id)
@@ -382,3 +380,11 @@ async def house_members(interaction:Interaction):
 
     message = await interaction.channel.send(content="", embed=print_house_members(server.members, page=0, filter=0), delete_after=60*minutes)
     await message.edit(view=MemberView(server.members, message))
+
+
+@bot.tree.command(name="change_nickname")
+async def chnick(interaction:Interaction, nick:str):
+    ''' Change your Nickname on Discord to the one in game '''
+
+    await standard_response(interaction)
+    await interaction.user.edit(nick=nick)
