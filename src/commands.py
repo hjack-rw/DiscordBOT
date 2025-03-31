@@ -351,7 +351,7 @@ async def add_disciplines(interaction:Interaction):
 async def is_housecup_this_week(interaction:Interaction):
     ''' Informs you if there will be a House Cup this week '''
 
-    today = datetime.now(tz=timezone.utc)
+    today = datetime.now()
 
     if (today.weekday() == 6):
         trigger = False
