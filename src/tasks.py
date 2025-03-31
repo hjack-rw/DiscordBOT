@@ -3,27 +3,34 @@ from src.functions import send_webhook, replace_multiple, get_image
 from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color, base_housecup_date, wait_for
 
 from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import copy
 import re
 import time as time_module
-import pytz
 
 from discord.embeds import Embed
 from discord.enums import EntityType, PrivacyLevel
 from discord.ext import tasks
 
 
-__all__ = ["housecup_disciplines_names", "morning_reminder", "weekly_cards_reminder", "housecup_reminder", "club_events_reminder", "game_midnight_reminder", "midnight_reminder", "create_a_task"] 
+__all__ = ["morning_reminder", "weekly_cards_reminder", "housecup_reminder", "club_events_reminder", "game_midnight_reminder", "midnight_reminder", "create_a_task"] 
 
 
-time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 03:00 - exact
-                "morning":       time(hour=7,  minute=0,  second=0, tzinfo=timezone.utc),                    # UTC   - 08:00 - exact
-                "weekly_cards":  time(hour=16, minute=59, second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 16:00 - exact
-                "housecup":      time(hour=19, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 18:00 - 24 h early
-                "club_events":   time(hour=19, minute=25, second=0, tzinfo=timezone.utc),                    # UTC   - 20:30 - 5 min early
-                "game_midnight": time(hour=23, minute=0,  second=0, tzinfo=pytz.timezone("Africa/Cairo")),   # UTC+2 - 23:00 - 1 h early
-                "midnight":      time(hour=23, minute=0,  second=0, tzinfo=timezone.utc),}                   # UTC   - 24:00 - 1 h early
+time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=ZoneInfo("Africa/Cairo")),   # UTC+2 - 03:00 - exact
+                "morning":       time(hour=7,  minute=0,  second=0, tzinfo=ZoneInfo("Europe/London")),  # UTC+1 - 08:00 - exact
+                "weekly_cards":  time(hour=16, minute=59, second=0, tzinfo=ZoneInfo("Africa/Cairo")),   # UTC+2 - 16:00 - exact
+                "housecup":      time(hour=19, minute=0,  second=0, tzinfo=ZoneInfo("Africa/Cairo")),   # UTC+2 - 18:00 - 24 h early
+                "club_events":   time(hour=19, minute=25, second=0, tzinfo=ZoneInfo("Europe/London")),  # UTC+1 - 20:30 - 5 min early
+                "game_midnight": time(hour=23, minute=0,  second=0, tzinfo=ZoneInfo("Africa/Cairo")),   # UTC+2 - 23:00 - 1 h early
+                "midnight":      time(hour=23, minute=0,  second=0, tzinfo=ZoneInfo("Europe/London")),} # UTC+1 - 24:00 - 1 h early
+
+def tasks_dict():
+    tasks_list = list(time_trigger.keys())
+    tasks_list[1] = "maintenance"
+    tasks_list[1], tasks_list[4] = tasks_list[4], tasks_list[1]
+    
+    return [task.replace("_", " ").title() for task in tasks_list if task not in ["game_reset", "midnight", "game_midnight"]]
 
 delete_after = {"hours":0, "minutes":0, "seconds":0}
 
@@ -66,7 +73,7 @@ if test_bot["test_tasks"]:
 # game reset reminder:
 #@tasks.loop(time=time_trigger["game_reset"])
 #async def game_reset_reminder(server):
-#    today = datetime.now(tz=timezone.utc)
+#    today = datetime.now(tz=time_trigger["game_reset"].tzinfo)
 #    print(f'''"Game Reset" task running... {today}!''')
 
 
@@ -74,7 +81,7 @@ if test_bot["test_tasks"]:
 # morning reminder:
 @tasks.loop(time=time_trigger["morning"])
 async def morning_reminder(server):
-    today = datetime.now(tz=timezone.utc)
+    today = datetime.now(tz=time_trigger["morning"].tzinfo)
     if test_bot["test_tasks"]:
         print(f'''"Morning" task running... {today}!''')
 
@@ -106,7 +113,7 @@ async def morning_reminder(server):
 # weekly_cards reminder:
 @tasks.loop(time=time_trigger["weekly_cards"])
 async def weekly_cards_reminder(server):
-    today = datetime.now(tz=pytz.timezone("Africa/Cairo"))
+    today = datetime.now(tz=time_trigger["weekly_cards"].tzinfo)
     if test_bot["test_tasks"]:
         print(f'''"Weekly Cards" task running... {today}!''')
 
@@ -164,7 +171,7 @@ async def weekly_cards_reminder(server):
 # housecup reminder:
 @tasks.loop(time=time_trigger["housecup"])
 async def housecup_reminder(server):
-    today = datetime.now(tz=pytz.timezone("Africa/Cairo"))
+    today = datetime.now(tz=time_trigger["housecup"].tzinfo)
     if test_bot["test_tasks"]:
         print(f'''"Housecup" task running... {today}!''')
     
@@ -197,7 +204,7 @@ async def housecup_reminder(server):
 # club_events reminder:
 @tasks.loop(time=time_trigger["club_events"])
 async def club_events_reminder(server):
-    today = datetime.now(tz=timezone.utc)
+    today = datetime.now(tz=time_trigger["club_events"].tzinfo)
     if test_bot["test_tasks"]:
         print(f'''"Club Event" task running... {today}!''')
 
@@ -223,7 +230,7 @@ async def club_events_reminder(server):
 # game_midnight reminder:
 @tasks.loop(time=time_trigger["game_midnight"])
 async def game_midnight_reminder(server):
-    today = datetime.now(tz=pytz.timezone("Africa/Cairo"))
+    today = datetime.now(tz=time_trigger["game_midnight"].tzinfo)
     if test_bot["test_tasks"]:
         print(f'''"Game Midnight" task running... {datetime.now(tz=timezone.utc)}!''', today)
 
@@ -245,7 +252,7 @@ async def game_midnight_reminder(server):
 # midnight reminders
 @tasks.loop(time=time_trigger["midnight"])
 async def midnight_reminder(server):
-    today = datetime.now(tz=timezone.utc)
+    today = datetime.now(tz=time_trigger["midnight"].tzinfo)
     if test_bot["test_tasks"]:
         print(f'''"Midnight" task running... {today}!''')
 
