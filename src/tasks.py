@@ -190,7 +190,7 @@ async def housecup_reminder(server):
                       "footer":   '''"Did you put your name for the House Cup yet?!" he asked calmly.''',
                       "account":     "Prof. Dumbledore",}
         
-        await set_event_and_notification(server, event_info, today, time_delta=1, event_duration=(2,0,0), start_time=(19,0,0))
+        await set_event_and_notification(server, event_info, today, time_delta=1, event_duration=(2,0,0), start_time=(19,0,0), only_hour=False)
 
         if (not test_bot["test_tasks"] and housecup_disciplines.get().index(discipline) == 3):
             housecup_reset.change(to=True)
@@ -286,7 +286,7 @@ def convert_to_unix_time(date:datetime, mode:str):
     return f'<t:{int(time_module.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
 
 
-async def set_event_and_notification(server, event_info, trigger_day, event_duration, start_time, time_delta=0):
+async def set_event_and_notification(server, event_info, trigger_day, event_duration, start_time, only_hour=True, time_delta=0):
     global delete_after
     if time_delta:
         trigger_day += timedelta(days=time_delta)
@@ -355,7 +355,7 @@ async def set_event_and_notification(server, event_info, trigger_day, event_dura
     embed = Embed(color=system_embed_color, title=event_info["title"], description=event_info["description"])
     embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=event_info["subtitle"])
     embed.add_field(name="Location", value=event_info["location"], inline=False)
-    embed.add_field(name="Scheduled for", value=f"{convert_to_unix_time(date=beginning.astimezone(), mode='t')}", inline=True)
+    embed.add_field(name="Scheduled for", value=f"{convert_to_unix_time(date=beginning.astimezone(), mode=('t' if only_hour else 'f'))}", inline=True)
     embed.add_field(name="Duration", value=duration, inline=True)
 
     if event_info["footer"]:
