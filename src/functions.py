@@ -17,9 +17,6 @@ from discord.file import File
 from discord.utils import MISSING
 
 
-__all__ = ["standard_response", "send_command", "send_webhook", "replace_multiple", "get_image", "get_avatar", "draw_infocard", "get_json_info", "parse_portkey_data", "print_portkey", "print_house_members"] 
-
-
 headers = {"authorization": f"Bot {bot_token}",
            "content-type": "application/json",
            "user-agent": "BOT (http://discord.com, v1.0)",}
@@ -65,17 +62,21 @@ async def send_command(target_channel_id, app_id, version, id, command, options=
         raise ValueError("FAILED TO SEND COMMAND!")
 
 
-async def send_webhook(target_channel, user_name, user_avatar_url=None, content="", embed=None, file=None, view=None):            
+def change_webhook_channel(target_channel):
     payload = {"channel_id":target_channel.id}
-    
+    return session.patch(f"https://discordapp.com/api/webhooks/{webhook_id}", json=payload, headers=headers,)
+
+
+async def send_webhook(target_channel, user_name, user_avatar_url=None, content="", embed=None, file=None, view=None):            
+
+    response = change_webhook_channel(target_channel)
+    #print(response)
+
     if user_avatar_url is None:
         try:
             user_avatar_url = custom_avatars[user_name]
         except KeyError:
             user_avatar_url = custom_avatars["Prof. Dumbledore"]
-    
-    response = session.patch(f"https://discordapp.com/api/webhooks/{webhook_id}", json=payload, headers=headers,)
-    #print(response)
 
     if response.status_code == 200:
         webhook = [webhook for webhook in await target_channel.webhooks() if webhook.id == webhook_id][0]
