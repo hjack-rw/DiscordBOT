@@ -208,23 +208,36 @@ async def club_events_reminder(server):
     if test_bot["test_tasks"]:
         print(f'''"Club Event" task running... {today}!''')
 
-    # trigger every day if variable is True
-    trigger_club_events = ExtraVariable(name="trigger_club_events")
-    if trigger_club_events.get():
-    
-        event_info = {"image_id":    "event_image",
-                      "title":       "GOP Club Events!",
-                      "subtitle":   f"Reminder: {weekdays[today.weekday()]}!",
-                      "description": "**We start 000!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance!",
-                      "footer":   '''"Place your right hand on my waist and...\nOne, two, three... One, two, three..."''',
-                      "account":     "Prof. McGonagall",}
+    # trigger every workday
+    if (test_bot["test_tasks"] or today.weekday() not in [5, 6]):
         
-        await set_event_and_notification(server, event_info, today, event_duration=(1,0,0), start_time=(19,30,0))
+        # and if variable is True
+        trigger_club_events = ExtraVariable(name="trigger_club_events")
+        if trigger_club_events.get():
+        
+            event_info = {"image_id":  "event_image",
+                        "title":       "GOP Club Events!",
+                        "subtitle":   f"Reminder: {weekdays[today.weekday()]}!",
+                        "description": "**We start 000!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance!",
+                        "footer":   '''"Place your right hand on my waist and...\nOne, two, three... One, two, three..."''',
+                        "account":     "Prof. McGonagall",}
+            
+            await set_event_and_notification(server, event_info, today, event_duration=(1,0,0), start_time=(19,30,0))
+        
+        # default True
+        else:
+            trigger_club_events.change(to=True)
     
-    # default True
-    else:
-        trigger_club_events.change(to=True)
-
+    # trigger every weekend
+    if (test_bot["test_tasks"] or today.weekday() in [5, 6]):
+        channel = server.get_channel(channel_ids["announcements"])
+        
+        embed = Embed(color=system_embed_color, description="Reminder to all who haven't earned\ntheir 100 Club points yet!\n\n" \
+        "Please do so by the **end of the week**\n or inform a <@&1221884134121668648> / <@&1221910705318662154>\nif you are unable to do so!")
+        embed.set_footer(text='''"And be warned... I shall know if you have not practiced."''')
+        
+        message = await send_webhook(target_channel=channel, user_name="Prof. Snape", content="Mention: <@&1314983531050569828>", embed=embed)
+        delete_message.start(message)
 
 
 # game_midnight reminder:
@@ -266,6 +279,14 @@ async def midnight_reminder(server):
         await send_webhook(target_channel=channel, user_name="Prof. Dumbledore", content="Mention: <@&1221884134121668648> <@&1221910705318662154>", embed=embed)
 
 
+# delete message 
+@tasks.loop(hours=23, minutes=59, seconds=59, count=2)
+async def delete_message(message):
+    if delete_message.current_loop != 0:
+        await message.delete()
+
+
+# user create task
 def create_a_task(timer):
 
     @tasks.loop(hours=timer["hours"], minutes=timer["minutes"], seconds=timer["seconds"], count=2)
