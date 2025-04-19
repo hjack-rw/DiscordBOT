@@ -10,7 +10,8 @@ if __name__ == '__main__':
 # - subscription system (see bellow:)
 
 #TODO! subscription system:
-# pick a subscription / clear all subscriptions on button. add the role to members before the event
+# pick a subscription and add the role to members before the event
+# clear all subscriptions on another button
 # IMPORTANT: check if clearing the role keeps the notification!
 
 #TODO! create own custom cards for leaderboard:
@@ -30,3 +31,6 @@ if __name__ == '__main__':
 # - the times are from the database. while creating save to database. after executing delete
 # - limit for user that is set in code (2 for testing)
 # - seperate into aquatic and non aquatic
+
+#TODO! a queue for all events this day so if the bot restarts he knows if he has to send something
+# - when they trigger normally just remove them
