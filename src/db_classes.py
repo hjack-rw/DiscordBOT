@@ -18,8 +18,6 @@ def connect_db():
 db_connection, db_cursor = connect_db()
 base_date = datetime(year=2000, month=1, day=1)
 
-__all__ = ["ExtraVariable", "WelcomeMessages", "Portkeys"]
-
 
 def convert_int_to_date(date_in_int:int):
     try:

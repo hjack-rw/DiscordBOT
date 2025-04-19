@@ -1,4 +1,4 @@
-from pre_init import test_bot
+from pre_init import *
 
 from datetime import datetime
 from dotenv import load_dotenv
@@ -8,10 +8,6 @@ import os
 
 path = os.getcwd() + "/src/"
 load_dotenv(dotenv_path=Path(path + "env"))
-
-
-__all__ = ["absolute_path", "test_bot", "server_id", "bot_id", "webhook_id", "channel_ids", "channel_ids_test", "custom_avatars", "houses", "wait_for",
-           "discord_token", "bot_token", "system_embed_color", "base_housecup_date"] 
 
 
 absolute_path = path

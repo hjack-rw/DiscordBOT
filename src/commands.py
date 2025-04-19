@@ -1,9 +1,9 @@
 from src.body import bot
-from src.db_classes import ExtraVariable, Portkeys
-from src.functions import standard_response, send_command, send_webhook, get_avatar, get_json_info, print_portkey, parse_portkey_data, print_house_members
-from src.tasks import housecup_disciplines_names
+from src.db_classes import ExtraVariable, WelcomeMessages, Portkeys
+from src.functions import standard_response, send_command, send_webhook, get_avatar, draw_infocard, get_json_info, print_portkey, parse_portkey_data, print_house_members
+from src.tasks import notification_dict, housecup_disciplines_names, print_notification
 from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color, base_housecup_date, wait_for
-from src.views import DropdownView, MemberView
+from src.views import *
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Literal
@@ -383,8 +383,47 @@ async def house_members(interaction:Interaction):
 
 
 @bot.tree.command(name="change_nickname")
-async def chnick(interaction:Interaction, nick:str):
+async def change_nick(interaction:Interaction, nick:str):
     ''' Change your Nickname on Discord to the one in game '''
 
     await standard_response(interaction)
     await interaction.user.edit(nick=nick)
+
+
+@bot.tree.command(name="send_notification")
+async def send_notification(interaction:Interaction, event:Literal[tuple(notification_dict().keys())], member:Optional[Member], same_day:Optional[bool]): # type: ignore
+    ''' Send the notification manually '''
+    
+    await standard_response(interaction)
+
+    server = bot.get_guild(server_id)
+    today = datetime.now()
+
+    variables = []
+    if event == "Welcome" or event == "Birthday":
+        if member is None:
+            return await interaction.followup.send(f"{event} notifications require to select a Member!", ephemeral=True)
+        else:
+            if event == "Welcome":
+                image = draw_infocard(new_user=member, all_members=len([member for member in server.members if not member.bot]))
+                view = WelcomeView(user=member, stickers=server.stickers)
+                
+                variables += [member, image, view]
+            elif event == "Birthday":
+                variables.append([member.id])
+    elif event == "Housecup":
+        housecup_disciplines = ExtraVariable(name="housecup_disciplines")
+        housecup_reset = ExtraVariable(name="housecup_reset")
+        delta = datetime(year=today.year, month=today.month, day=today.day) - base_housecup_date
+        
+        discipline = housecup_disciplines.get()[int(delta.days / 14) % 4]
+        variables.append(discipline)
+
+    message = await print_notification(server, date=today, event_name=event, variables=variables, same_day=same_day)
+
+    if not test_bot["test_command"]: 
+        if event == "Welcome":
+            WelcomeMessages().add(message.id)
+        elif event == "Housecup":
+            if housecup_disciplines.get()[3] == discipline:
+                housecup_reset.change(to=True)
