@@ -5,6 +5,7 @@ from src.views import WelcomeView
 
 import re
 
+from datetime import datetime, timedelta
 from discord.errors import NotFound
 from discord.ext import commands
 from discord.flags import Intents
@@ -45,7 +46,7 @@ class BOT(commands.Bot):
         game_midnight_reminder.start(server)
         midnight_reminder.start(server)
 
-        for message_id in WelcomeMessages().get_all()[::-1]:
+        for message_id in WelcomeMessages().get_all(date=(datetime.now() - timedelta(days=14)))[::-1]:
             try:
                 channel = server.get_channel(channel_ids["welcome"])
                 message = await channel.fetch_message(message_id)
