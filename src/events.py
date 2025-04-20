@@ -5,6 +5,7 @@ from src.tasks import print_notification
 from src.variables import test_bot, server_id, channel_ids_test
 from src.views import WelcomeView
 
+from datetime import datetime
 
 # SETTINGS
 # for testing
@@ -26,6 +27,17 @@ async def on_member_join(new_user):
         message = print_notification(server, date=None, event_name="Welcome", variables=[new_user, image, view])
 
         if not test_bot["test_events"]:
-            WelcomeMessages().add(message.id)
+            WelcomeMessages().add(user_id=new_user.id, message_id=message.id, date=datetime.now())
     else:
         print(f"BOT: {new_user.name} joined the server!")
+
+
+# Leaving event
+@bot.event
+async def on_member_remove(member):
+    server = bot.get_guild(server_id)
+    channel = server.get_channel(channel_ids["welcome"])
+
+    message_id = WelcomeMessages().remove(user_id=member.id)
+    message = await channel.fetch_message(message_id)
+    await message.delete()

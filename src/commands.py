@@ -423,7 +423,7 @@ async def send_notification(interaction:Interaction, event:Literal[tuple(notific
 
     if not test_bot["test_command"]: 
         if event == "Welcome":
-            WelcomeMessages().add(message.id)
+            WelcomeMessages().add(user_id=member.id, message_id=message.id, date=datetime.now())
         elif event == "Housecup":
             if housecup_disciplines.get()[3] == discipline:
                 housecup_reset.change(to=True)

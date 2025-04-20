@@ -106,13 +106,20 @@ class Database():
         self.con.commit()
         return new_value
 
-    def _insert(self, table, columns, items, new_record):
+    def _insert(self, table, columns, items, new_record, custom_id=None):
+        
         # protect from creating duplicates
         try:
             items[new_record]
             print(f"{new_record} is already in the database!")
         except KeyError:
-            id = list(self._select_from(table="sqlite_sequence", id=table, add=Filter.NAME).keys())[0]
+            if custom_id is not None:
+                id_column, id = custom_id.popitem()
+                
+                columns = {id_column: 0, **columns}
+                new_record = (id,) + new_record
+            else:
+                id = int(next(iter(self._select_from(table="sqlite_sequence", id=table, add=Filter.NAME)))[0]) + 1
 
             columns = ", ".join([column for column in columns.keys() if columns[column] != -1])
             values = ", ".join([self._return_value(record, type(record)) for record in new_record])
@@ -124,26 +131,33 @@ class Database():
             except sqlite3.IntegrityError:
                 raise ValueError("failed to add to the database")
             
-            items[new_record] = int(id[0]) + 1
+            items[new_record] = id
         
         return items
 
-    def _delete(self, table, items, record):
+    def _delete(self, table, items, id, id_column="ID"):
+        
         # protect from deleting nonexistant
         try:
-            id = items[record]
-            self.cur.execute(f"DELETE FROM {table} WHERE ID = {id};")
+            record = {value:key for key,value in items.items()}[id]
+
+            self.cur.execute(f"DELETE FROM {table} WHERE {id_column.upper()} = {id};")
             self.con.commit()
             del items[record]
         except KeyError:
-            print(f"No {record} record in the database!")
+            print(f"No record with {id_column.upper()} = {id} in the database!")
         
-        return items
+        return items, {record: id}
 
     def _get_columns(self, table, drop_columns=[]):
         self.cur.execute(f"PRAGMA table_info({table});")       
         #(item[0] if item[1] not in drop_columns else -1)
-        return {item[1]:item[0] for idx,item in enumerate(self.cur) if idx != 0}
+
+        columns = {item[1]:item[0] for item in self.cur}
+        id_column = next(iter(columns))
+        columns.pop(id_column)
+
+        return columns, id_column
 
     def _get_value(self, value, type):
         if type == "bool":
@@ -175,10 +189,8 @@ class Database():
         if types is None:
             types = dict()
         
-        instances = items.keys()
-
         return_list = []
-        for instance in instances:
+        for instance in items.keys():
             temp_dict = {}
             
             for idx, column in enumerate(columns.keys()):
@@ -204,7 +216,7 @@ class Database():
 class ExtraVariable(Database):
     def __init__(self, name):
         self.table = "extra_variables"
-        self.columns = self._get_columns(self.table)
+        self.columns, _ = self._get_columns(self.table)
         self.name = name
         
         items = self._select_from(self.table, id=name, add=Filter.NAME)
@@ -231,23 +243,28 @@ class ExtraVariable(Database):
 class WelcomeMessages(Database):
     def __init__(self):
         self.table = "welcome_messages"
-        self.columns = self._get_columns(self.table)
+        self.columns, self.id_column = self._get_columns(self.table)
         self.items = self._select_from(self.table)
+        self.types = {"date": "date"}
 
     # add message_id to db
-    def add(self, message_id):
-        new_record = (message_id,)
-        self.items = self._insert(self.table, self.columns, self.items, new_record)
+    def add(self, user_id, message_id, date):
+        new_record = (message_id, date)
+        self.items = self._insert(self.table, self.columns, self.items, new_record, custom_id={self.id_column:user_id})
     
+    def remove(self, user_id):
+        self.items, deleted_record = self._delete(self.table, self.items, id=user_id, id_column=self.id_column)
+        return self._get_values_from_items(deleted_record, self.columns, self.types)[0]["message_id"]
+
     # return message_ids
-    def get_all(self):
-        return [instance["message_id"] for instance in self._get_values_from_items(self.items, self.columns)]
+    def get_all(self, date):
+        return [instance["message_id"] for instance in self._get_values_from_items(self.items, self.columns, self.types) if instance["date"] >= date]
 
 
 class Portkeys(Database):
     def __init__(self, id=None):
         self.table = "portkeys"
-        self.columns = self._get_columns(self.table)
+        self.columns, _ = self._get_columns(self.table)
         self.types = {"from_wb": "bool", "multiple_choice": "binary_13", "birthday": "date", "archived": "bool"}
         
         if id is None:
@@ -270,13 +287,15 @@ class Portkeys(Database):
 
     # return Portkey / Portkeys
     def get(self):
+        
+        # single record
         if self.id:
-            # single record
             dict = {"id": self.id}
             dict.update(self._get_values_from_items(self.items, self.columns, self.types)[0])
             return dict
+        
+        # multiple (for birthdays)
         else:
-            # multiple (for birthdays)
             items = self._get_values_from_items(self.items, self.columns, self.types)
             return [{key:value for key,value in item.items() if key in ["user_id", "birthday"]} for item in items if item["archived"] == False]
 
