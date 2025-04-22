@@ -6,70 +6,196 @@ import itertools
 import os
 import sqlite3
 
-def connect_db():
-    try:
-        path = os.getcwd() + "/src/"
-        db = sqlite3.connect(path + '_database.db')
-    except sqlite3.Error as error:
-        print(error)
-    finally:
-        return db, db.cursor()
-    
-db_connection, db_cursor = connect_db()
+
+# Data conversions operations
+############################################################################################################
+
+# date
 base_date = datetime(year=2000, month=1, day=1)
 
-
 def convert_int_to_date(date_in_int:int):
-    try:
-        return base_date + timedelta(days=date_in_int)
-    except TypeError:
-        return None
+    return base_date + timedelta(days=date_in_int)
 
 def convert_date_to_int(date:datetime):
-    try:
-        date = datetime(year=date.year, month=date.month, day=date.day)
-        delta = date - base_date
-        return delta.days
-    except TypeError:
-        return None
+    date = datetime(year=date.year, month=date.month, day=date.day)
+    delta = date - base_date
+    return delta.days
 
-
-def convert_int_to_permutation(permutation_in_int:int, requirements:list):
-    permutations = list(itertools.permutations([x for x in range(requirements[0])], requirements[1]))
-    return Permutation(max_idx=requirements[0], instance=permutations[permutation_in_int])
-
-def convert_permutation_to_int(permutation:tuple, requirements:list):
-    permutations = list(itertools.permutations([x for x in range(requirements[0])], requirements[1]))
-    return permutations.index(permutation)
-
-
+# binary
 def is_binary(string:str):
     string = set(string)
     if string == {'0', '1'} or string == {'0'} or string == {'1'}:
         return True
-    else :
-        return False
+    return False
 
+# permutation
+class permutation:
+    def __init__(self, permutation_in_int:int, requirements:list):
+        self.max_idx, self.len_instance = [int(x) for x in requirements[1:]]
 
-class Filter(Enum):
-    NONE = ""
-    ID   = " WHERE ID = 0"
-    NAME = " WHERE NAME = '0'"
-
-
-class Permutation:
-    def __init__(self, max_idx, instance):
-        self.max_idx      = max_idx
-        self.len_instance = len(instance)
-        self.instance     = instance
-        self.type         = type(instance)
+   #def convert_int_to_permutation
+        self.instance = self.permutations()[permutation_in_int]
     
+    def permutations(self):
+        return list(itertools.permutations([x for x in range(self.max_idx)], self.len_instance))
+
     def check(self):
-        test_1 = (self.type == type(self.instance))
-        test_2 = (self.len_instance == len(self.instance))
-        test_3 = (self.max_idx > max(self.instance))
+        test_1 = (type(self.instance) == tuple)
+        test_2 = (len(self.instance)  == self.len_instance)
+        test_3 = (max(self.instance)   < self.max_idx)
         return test_1 and test_2 and test_3
 
+    def convert_permutation_to_int(self):
+        return self.permutations().index(self.instance)
+
+# Validators
+############################################################################################################
+
+# check the variable in question (== True)
+def check_variable(self, variables:list, reverse=False):
+    """Check the variables in question if == True"""
+
+    check = False
+
+    for name in variables:
+        try:
+            if check := vars(self)[name]:
+                break
+        except KeyError:
+            continue
+    
+    return not check if reverse else check
+
+def sql_insert_delete_operation_validator(func):
+    """Validator if the table was loaded fully"""
+
+    def validator(self, *args, **kwargs):
+        if not check_variable(self, variables=["conditions", "is_short"]):
+            return func(self, *args, **kwargs)
+        
+        # print error not to interrupt app
+        print(f"Can only '{func.__name__}' with fully loaded table!")
+    
+    return validator
+
+def sql_update_one_operation_validator(func):
+    """Validate if more than one record was loaded"""
+
+    def validator(self, *args, **kwargs):
+        if len(self.raw) < 2 and not check_variable(self, variables=["is_short"]):
+            return func(self, *args, **kwargs)
+        
+        # print error not to interrupt app
+        print(f"Can only '{func.__name__}' with one record loaded!")
+    
+    return validator
+
+def sql_entire_table_init_validator(func):
+    """Validator for tables that need all rows loaded"""
+
+    def validator(self, *args, **kwargs):
+        for kwarg in kwargs:
+            if kwarg in ["omitted_columns", "specified_columns"]:
+                raise Exception(f"Needs to load all rows for '{self.__name__}'!")
+        return func(self, *args, **kwargs)
+    
+    return validator
+
+# Clauses
+############################################################################################################
+
+class Filter(Enum):
+    NONE     = ""
+    STANDARD = " = *"
+    BOOL_T   = "* = 1"
+    BOOL_F   = "* = 0"
+    NULL     = "* IS NULL" 
+
+def check_type(key, value, type, req_numeric=False):
+    if type == "undefined":
+        if not isinstance(value, int) or not isinstance(value, float):
+            raise Exception(f"'{key}' is neither an int nor a float!")
+    
+    elif type == "permutation":
+        if not value.check():
+            raise Exception(f"'{key}' is not a suited permutation!")
+    
+    elif type == "binary":
+        if not isinstance(value, str) and not is_binary(value):
+            raise Exception(f"'{key}' is not binary!")
+    
+    else:
+        type_dict = {"int":int,"float":float,"str":str,"datetime":datetime}
+        
+        if not isinstance(value, type_dict[type]):
+            raise Exception(f"'{key}' is not a {type}!")
+    
+    if req_numeric:
+        raise Exception(f"'{key}' has not a numeric filter!")
+    
+    return True
+
+def get_clause(conditions):
+    """Get the condition clause"""
+
+    if conditions and (Filter.NONE not in conditions):
+        clause = " AND ".join([f"{con}" for con in conditions])
+
+        if "*" not in clause:
+            return  "WHERE " + clause
+        
+        print(f"An error occurred while applying the filter:\n'{clause}'")
+    return Filter.NONE.value
+
+def get_update_clause(self, new_value):
+    """Get update clause"""
+    
+    # get the record
+    id, record = zip(*self.raw.items())
+    id, record = next(iter(id)), next(iter(record))
+
+    record = list(record)
+    
+    update_clause = []
+    for column,value in new_value.items():
+        
+        # get column_id
+        try:
+            column_id = list(self.columns.keys())[1:].index(column)
+        except ValueError:
+            if column == self._get_id_column():
+                raise Exception(f"{column} is an ID!")
+            raise Exception(f"{column} is not a column name!")
+
+        # get the old value string
+        _, value_type, not_null, _  = self.columns[column].values()
+                
+        # get the old value
+        old_value = self._get_value(record[column_id], self._get_type_from_column(value_type))
+
+        # protect from mismatched datatypes (except None)
+        if not_null:
+            try:
+                if type(old_value) != type(value):
+                    raise Exception("Mismatched datatypes!")
+                elif type(old_value) == permutation:
+                    if not value.check():
+                        raise Exception("Mismatched datatypes!")
+            except Exception as exception:
+                print("Error: ", exception)
+                value = old_value
+
+        # convert to db value
+        change = self._return_value(value, type(value))
+    
+        update_clause += [f"{column} = {change}"]
+
+        record[column_id] = change
+    return ", ".join(update_clause), id, record
+
+
+# Basic SQL commands and functionality
+############################################################################################################
 
 class Database():
     @classmethod
@@ -77,227 +203,396 @@ class Database():
         cls.con = db_connection
         cls.cur = db_cursor
 
-    def _select_from(self, table, id=None, add=Filter.NONE):
-        if id and (add != Filter.NONE):
-            condition = add.value.replace("0", str(id))
-        else:
-            condition = add.value
-        
-        self.cur.execute(f"SELECT * FROM {table}{condition};")
+    def _select(self, table, conditions=[Filter.NONE], is_short=False):
+        """Command SELECT"""
 
-        return {item[1:]:item[0] for item in self.cur}
-    
-    def _update(self, table, column, id, old_value, new_value, add=Filter.ID):
+        # apply filters
+        clause = get_clause(conditions)
+
+        # apply selected columns
+        columns = "*"
+        if is_short:
+            columns = ", ".join(self._get_imported_columns()).upper()
+
+        # execute command
         try:
-            if type(old_value) != type(new_value):
-                raise Exception("Mismatched datatypes!")
-            elif type(old_value) == Permutation:
-                if not new_value.check():
-                    raise Exception("Mismatched datatypes!")
-        except Exception as exception:
-            print(exception)
-            return old_value
+            command = f"SELECT {columns} FROM {table} {clause};"
+            self.cur.execute(command)
+        except sqlite3.OperationalError:
+            print("Error:", command)
+        
+        return {row[0]:tuple(row[1:]) for row in self.cur}
 
-        condition = add.value.replace("0", str(id))
-        change = self._return_value(new_value, type(new_value))
+    def _update(self, conditions, new_value):
+        """Command UPDATE"""
+        
+        # apply filters
+        clause = get_clause(conditions)
+        
+        update_clause, id, record = get_update_clause(self, new_value)
 
-        command = f"UPDATE {table} SET {column} = {change}{condition};".replace("None", "NULL")
-        self.cur.execute(command)
-        self.con.commit()
-        return new_value
+        # execute command
+        try:
+            command = f"UPDATE {self.table} SET {update_clause} {clause};".replace("None", "NULL")
+            self.cur.execute(command)
+            self.con.commit()
+        except sqlite3.OperationalError:
+            print("Error:", command)
+        
+        # replace the changed value in record
+        self.raw[id] = tuple(record)
 
-    def _insert(self, table, columns, items, new_record, custom_id=None):
+    def _insert(self, new_record, custom_id=None):
+        """Command INSERT"""
         
         # protect from creating duplicates
         try:
-            items[new_record]
+            {value:key for key,value in self.raw.items()}[new_record]
             print(f"{new_record} is already in the database!")
+
+        # if not a duplicate
         except KeyError:
+            
+            new_record = [self._return_value(value, type(value)) for value in new_record]
+
+            # when using a custom_id column
             if custom_id is not None:
-                id_column, id = custom_id.popitem()
+                custom_id = self._return_value(custom_id, type(custom_id))
                 
-                columns = {id_column: 0, **columns}
-                new_record = (id,) + new_record
+                columns     = filter(lambda item: not item[1]["has_default"], self.columns.items())
+                id, values  = custom_id, (custom_id, *new_record)
+            
+            # else autoiterate
             else:
-                id = int(next(iter(self._select_from(table="sqlite_sequence", id=table, add=Filter.NAME)))[0]) + 1
+                columns     = filter(lambda item: not item[1]["has_default"] and not item[1]["is_pk"], self.columns.items())
+                id, values  = self._get_last_id() + 1, new_record
 
-            columns = ", ".join([column for column in columns.keys() if columns[column] != -1])
-            values = ", ".join([self._return_value(record, type(record)) for record in new_record])
+            columns = ", ".join([column for column,_ in columns]).upper()
+            values  = ", ".join([str(value) for value in values])
 
+            # execute command
             try:
-                command = f"INSERT INTO {table} ({columns}) VALUES ({values});".replace("None", "NULL")
+                command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});".replace("None", "NULL")
                 self.cur.execute(command)
                 self.con.commit()
             except sqlite3.IntegrityError:
-                raise ValueError("failed to add to the database")
+                raise Exception(f"failed to add to the database! Error: {command}")
             
-            items[new_record] = id
-        
-        return items
+            # insert the new record
+            self.raw[id] = tuple(new_record)
 
-    def _delete(self, table, items, id, id_column="ID"):
+    def _delete(self, conditions, id):
+        """Command DELETE"""
+        
+        # apply filters
+        clause = get_clause(conditions)
         
         # protect from deleting nonexistant
         try:
-            record = {value:key for key,value in items.items()}[id]
-
-            self.cur.execute(f"DELETE FROM {table} WHERE {id_column.upper()} = {id};")
+            record = self.raw[id]
+            
+            # execute command
+            command = f"DELETE FROM {self.table} {clause};"
+            self.cur.execute(command)
             self.con.commit()
-            del items[record]
-        except KeyError:
-            print(f"No record with {id_column.upper()} = {id} in the database!")
+            del self.raw[id]
         
-        return items, {record: id}
+            # return the deleted record
+            return {id: record}
 
-    def _get_columns(self, table, drop_columns=[]):
-        self.cur.execute(f"PRAGMA table_info({table});")       
-        #(item[0] if item[1] not in drop_columns else -1)
+        # if doesn't exitst
+        except KeyError:
+            print(f"no such record in the database! Error: {command}")
+            return None
 
-        columns = {item[1]:item[0] for item in self.cur}
-        id_column = next(iter(columns))
-        columns.pop(id_column)
+    def _get_columns(self, types={}, **kwargs):
+        """Get column names"""
+        
+        types_dict = {"INTEGER":"int",
+                      "REAL":"float", 
+                      "NUMERIC":"undefined", # Float or Int
+                      "TEXT":"str",
+                      "BLOB": "object"}      # Binary Large Object
+        
+        types_dict.update(types)
 
-        return columns, id_column
+        omitted_columns   = kwargs.pop("omitted_columns",   [])
+        specified_columns = kwargs.pop("specified_columns", [])
+
+        # protect from excluding specified
+        if omitted_columns in specified_columns:
+            raise Exception(f"'specified_columns' and 'omitted_columns' can't overlap")
+        
+        # execute command
+        self.cur.execute(f"PRAGMA table_info({self.table});")       
+
+        columns = {}
+        for (_, column_name, type, not_null, has_default, is_pk) in self.cur:
+
+            # keep pk
+            if not is_pk:
+                if (specified_columns and column_name not in specified_columns) or (column_name in omitted_columns):
+                    columns[column_name] = None
+                    continue
+            
+            columns[column_name] = {"is_pk":       bool(is_pk),
+                                    "type":        types_dict.pop(column_name, types_dict[type]),
+                                    "not_null":    bool(not_null),
+                                    "has_default": bool(has_default)}
+
+        # columns dict {"column_name":True/False}
+        return columns, kwargs
+
+    def _get_filters(self, **kwargs):
+        """ Return filters for DB """
+        
+        allowed_filters = list(self._get_imported_columns())
+
+        self.conditions, self.is_short = [], not all((self.columns.values()))
+        for key, value in kwargs.items():
+            
+            # specification for certain variables
+            try:
+                key, spec = key.split("__")
+            except ValueError:
+                key, spec = next(iter(key.split("__"))), None
+            
+            if key not in allowed_filters:
+                raise Exception(f"filter '{key}' can't be applied to the requested data/table!")
+            
+            type = self.columns[key]["type"]
+            spec_is_numeric = True if spec and spec != "inequal" else False
+
+            # if value has the correct type apply conditions
+            if type != "bool":
+                
+                # int, float, undefined, datetime, binary
+                if type not in ["str", "permutation"]:
+                    if type == "int":
+
+                        # except accepted keywords
+                        if key == "id" and value in ["last"]:
+                            value = self._get_last_id()
+                        
+                        elif key == "message_id" and value in ["archived", "unarchived"]:
+                            self.conditions += [Filter.NULL.value.replace("*", key.upper())]
+                        
+                            if value == "unarchived":
+                                self.conditions[-1] = self.conditions[-1].replace("IS", "IS NOT")
+                            
+                            continue
+                        
+                        elif isinstance(value, str):
+                            raise Exception(f"'{value}' is not an accepted keyword!")
+
+                    check_type(key, value, type)
+                
+                # string, permutation
+                else:
+                    if "permutation" in type:
+                        permutation = permutation(0, requirements=type.split('_'))
+                        permutation.instance = value
+                        value = permutation
+                
+                    check_type(key, value, type, req_numeric=spec_is_numeric)
+
+                self.conditions += [key.upper() + Filter.STANDARD.value.replace("*", str(self._return_value(value, type)))]
+
+            # bool
+            elif type == "bool" and check_type(key, value, type, req_numeric=spec_is_numeric):
+                filter = Filter.BOOL_T if value else Filter.BOOL_F
+                self.conditions += [filter.value.replace("*", key.upper())]
+            
+            # apply specification
+            if spec:
+                if spec == "less":
+                    self.conditions[-1] = self.conditions[-1].replace("=", "<")
+                elif spec == "lessequal":
+                    self.conditions[-1] = self.conditions[-1].replace("=", "<=")
+                elif spec == "great":
+                    self.conditions[-1] = self.conditions[-1].replace("=", ">")
+                elif spec == "greatequal":
+                    self.conditions[-1] = self.conditions[-1].replace("=", ">=")
+                elif spec == "inequal":
+                    self.conditions[-1] = self.conditions[-1].replace("=", "<>")
+
+        return self.conditions, self.is_short
 
     def _get_value(self, value, type):
+        """ Convert out of DB value """
+
         if type == "bool":
             return bool(value)
         elif "binary" in type:
             return ('{0:0' + type.split("_")[1] + 'b}').format(value)
         elif "permutation" in type:
-            return convert_int_to_permutation(value, requirements=[int(x) for x in type.split('_') if x != "permutation"])
-        elif type == "date":
+            return permutation(value, requirements=type.split('_'))
+        elif type == "datetime":
             return convert_int_to_date(value)
-        else:
-            return value
+        return value
     
     def _return_value(self, value, type):
-        if type == bool:
+        """ Convert to DB value """
+
+        try:
+            type = type.__name__
+        except AttributeError:
+            pass
+
+        if type == "bool":
             value = int(value)
-        elif type == datetime:
+        elif type == "datetime":
             value = convert_date_to_int(value)
-        elif type == Permutation:
-            value = convert_permutation_to_int(value.instance, requirements=[value.max_idx, value.len_instance])
-        elif type == str: 
+        elif type == "permutation":
+            value = value.convert_permutation_to_int()
+        elif type in ["str", "binary"]: 
             if is_binary(value):
                 value = int(value, 2)
             else:
                 return f"'{value}'"
-        return f"{value}"
+        return value
 
-    def _get_values_from_items(self, items, columns, types=None):
-        if types is None:
-            types = dict()
+    def _get_values_from_raw_data(self, raw, add_id=False):
+        """ Return records in a list of dict """
         
         return_list = []
-        for instance in items.keys():
+        for idx, instance in raw.items():
             temp_dict = {}
             
-            for idx, column in enumerate(columns.keys()):
-                if columns[column] == -1:
-                    continue
-                elif "type" in column:
-                    types.update({column.split("_")[1] : instance[idx]})
+            for idx_column, column in enumerate(self._get_imported_columns(), -1):
+                is_pk , value_type, _, _  = self.columns[column].values()
+                
+                if is_pk:
+                    if add_id:
+                        temp_dict[column] = idx
                     continue
                 
-                try:
-                    type = types[column]
-                    temp_dict[column] = self._get_value(instance[idx], type)
-                except KeyError:
-                    temp_dict[column] = instance[idx]
-
+                temp_dict[column] = self._get_value(instance[idx_column], self._get_type_from_column(value_type))
             
             return_list += [temp_dict]
         
         return return_list
 
+    def _get_type_from_column(self, type):
+        if isinstance(type, int):
+            return next(iter(self.raw.values()))[type]
+        return type
 
+    # TODO! Only one ID supported at the time, the first Primary Key
+    def _get_id_column(self):
+        return next(filter(lambda item: item[1]["is_pk"], self.columns.items()))[0]
+
+    def _get_imported_columns(self):
+        return filter(self.columns.get, self.columns)
+
+    def _get_last_id(self):
+        return int(next(iter(self._select(table="sqlite_sequence", conditions=["NAME" + Filter.STANDARD.value.replace("*", f"'{self.table}'")]).values()))[0])
+
+# Tables
+############################################################################################################
 
 class ExtraVariable(Database):
-    def __init__(self, name):
-        self.table = "extra_variables"
-        self.columns, _ = self._get_columns(self.table)
-        self.name = name
-        
-        items = self._select_from(self.table, id=name, add=Filter.NAME)
-        self.value = self._get_values_from_items(items, self.columns)[0]["value"]
+    
+    @sql_entire_table_init_validator
+    def __init__(self, **kwargs):
+        self.table           = "extra_variables"
+        self.columns, kwargs = self._get_columns(types={"value":0}, **kwargs)
+        self.raw             = self._only_one_variable(self._select(self.table, *self._get_filters(**kwargs)))
+    
+    # on at the time ExtraVariable validator
+    def _only_one_variable(self, raw):
+        if len(raw) > 1:
+            raise Exception(f"{self.table} can only be loaded one at the time!")
+        return raw
 
-    # change value
+    # change the value of ExtraVariable
     def change(self, to):
-        if type(self.value) == Permutation:
-            value = copy.deepcopy(self.value)
-            value.instance = to
+        value = next(iter(self._get_values_from_raw_data(self.raw)))["value"]
         
+        if type(value) == permutation:
+            value = copy.deepcopy(value)
+            value.instance = to
             to = value
         
-        self.value = self._update(self.table, column="value", id=self.name, old_value=self.value, new_value=to, add=Filter.NAME)
-    
-    # return value
+        self._update(conditions=self.conditions, new_value={"value":to})
+
+    # return ExtraVariable
     def get(self):
-        if type(self.value) == Permutation:
-            return self.value.instance
-        else:
-            return self.value
+        value = next(iter(self._get_values_from_raw_data(self.raw)))["value"]
+        if type(value) == permutation:
+            return value.instance
+        return value
 
 
 class WelcomeMessages(Database):
-    def __init__(self):
-        self.table = "welcome_messages"
-        self.columns, self.id_column = self._get_columns(self.table)
-        self.items = self._select_from(self.table)
-        self.types = {"date": "date"}
+    def __init__(self, **kwargs):
+        self.table           = "welcome_messages"
+        self.columns, kwargs = self._get_columns(types={"date":"datetime"}, **kwargs)
+        self.raw             = self._select(self.table, *self._get_filters(**kwargs))
 
-    # add message_id to db
+    # add WelcomeMessage
+    @sql_insert_delete_operation_validator
     def add(self, user_id, message_id, date):
-        new_record = (message_id, date)
-        self.items = self._insert(self.table, self.columns, self.items, new_record, custom_id={self.id_column:user_id})
+        self._insert(new_record=(message_id, date), custom_id=user_id)
     
+    # remove WelcomeMessage
+    @sql_insert_delete_operation_validator
     def remove(self, user_id):
-        self.items, deleted_record = self._delete(self.table, self.items, id=user_id, id_column=self.id_column)
-        return self._get_values_from_items(deleted_record, self.columns, self.types)[0]["message_id"]
+        if deleted_record := self._delete(conditions=[self._get_id_column().upper() + Filter.STANDARD.value.replace("*", str(user_id))], id=user_id):
+            return next(iter(self._get_values_from_raw_data(deleted_record)))["message_id"]
+        return None
 
-    # return message_ids
-    def get_all(self, date):
-        return [instance["message_id"] for instance in self._get_values_from_items(self.items, self.columns, self.types) if instance["date"] >= date]
+    # return WelcomeMessages
+    def get_all(self):
+        return self._get_values_from_raw_data(self.raw, add_id=True)
 
 
 class Portkeys(Database):
-    def __init__(self, id=None):
-        self.table = "portkeys"
-        self.columns, _ = self._get_columns(self.table)
-        self.types = {"from_wb": "bool", "multiple_choice": "binary_13", "birthday": "date", "archived": "bool"}
-        
-        if id is None:
-            self.id = None
-            self.items = self._select_from(self.table)
-        else:
-            self.id = self.last_portkey() if (id == "last") else id
-            self.items = self._select_from(self.table, self.id, add=Filter.ID)
+    def __init__(self, **kwargs):
+        self.table           = "portkeys"
+        self.columns, kwargs = self._get_columns(types={"from_wb":"bool", "multiple_choice":"binary_13", "birthday":"datetime"}, **kwargs)
+        self.raw             = self._select(self.table, *self._get_filters(**kwargs))
     
-    # get last Portkey id
-    def last_portkey(self):
-        return list(self._select_from(table="sqlite_sequence", id=self.table, add=Filter.NAME).keys())[0][0]
-
     # add Portkey
+    @sql_insert_delete_operation_validator
     def add(self, portkey):
-        if self.id:
-            print("Can only add with full table loaded!")
-        else:
-            self.items = self._insert(self.table, self.columns, self.items, new_record=portkey)
+        self._insert(new_record=portkey)
+    
+    # update Portkey
+    @sql_update_one_operation_validator
+    def unarchive(self, message_id):
+        self._update(conditions=self.conditions, new_value={"message_id":message_id})
+
+    # archive Portkey
+    @sql_update_one_operation_validator
+    def archive(self):
+        try:
+            message_id = self.get()["message_id"]
+            self._update(conditions=self.conditions, new_value={"message_id":None})
+            return message_id
+        except TypeError:
+            return None
 
     # return Portkey / Portkeys
-    def get(self):
-        
-        # single record
-        if self.id:
-            dict = {"id": self.id}
-            dict.update(self._get_values_from_items(self.items, self.columns, self.types)[0])
-            return dict
-        
-        # multiple (for birthdays)
-        else:
-            items = self._get_values_from_items(self.items, self.columns, self.types)
-            return [{key:value for key,value in item.items() if key in ["user_id", "birthday"]} for item in items if item["archived"] == False]
+    def get(self, multiple=False):
+        if not multiple:
+            try:
+                return self._get_values_from_raw_data(self.raw)[0]
+            except IndexError:
+                return None
+        return [portkey["user_id"] for portkey in self._get_values_from_raw_data(self.raw)]
 
+############################################################################################################
 
+def connect_db():
+    """Access database"""
+    try:
+        path = os.getcwd() + "/src/"
+        db = sqlite3.connect(path + '_database.db')
+    except sqlite3.Error as error:
+        print(error)
+    finally:
+        return db, db.cursor()
+
+db_connection, db_cursor = connect_db()
 Database.set_(db_connection, db_cursor)

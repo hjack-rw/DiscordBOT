@@ -233,7 +233,7 @@ async def set_maintenance_base_date(interaction:Interaction, month:Literal[tuple
     base_date_maintenance = ExtraVariable(name="base_date_maintenance")
     
     try:
-        new_date=datetime(year=datetime.now(tz=gameserver_timezone).year, month=months[month], day=day)
+        new_date=datetime(year=datetime.now().year, month=months[month], day=day)
         await interaction.response.send_message(f"The next Maintenance will trigger **every two weeks** from **{new_date.strftime('%d/%m/%Y')}**", ephemeral=True)
     
         # change the variable value
@@ -279,7 +279,7 @@ async def accept_portkey_for_user(interaction:Interaction, message_id:str, membe
 
 
 @bot.tree.command(name="post_portkey")
-async def post_portkey(interaction:Interaction, id:str):
+async def post_portkey(interaction:Interaction, portkey_id:str):
     ''' Print a Portkey '''
 
     await standard_response(interaction)
@@ -287,10 +287,15 @@ async def post_portkey(interaction:Interaction, id:str):
     server = bot.get_guild(server_id)
 
     try:
-        portkey = Portkeys(id).get()
         channel = server.get_channel(channel_ids["portkey-arrival"])
+        portkey = Portkeys(id=portkey_id, message_id="archived")
         
-        await channel.send(embed=print_portkey(server, portkey))
+        if portkey_values := portkey.get():
+            message = await channel.send(embed=print_portkey(server, portkey_values))
+            portkey.unarchive(message_id=message.id)
+        else:
+            await interaction.channel.send("Something went very wrong here... the Portkey is ARCHIVED!", delete_after=10)
+
     except IndexError:
         await interaction.channel.send("Something went very wrong here... there is no Portkey with that ID!", delete_after=10)
 
@@ -303,12 +308,12 @@ async def edit_portkey(interaction:Interaction, message:Message):
 
     # check if message is sent by webhook and if it has the correct embed
     if (message.author.id == bot_id) and ("Portkey" in message.embeds[0].footer.text):
-        id = int(message.embeds[0].footer.text.split("#")[1])
-
         server = bot.get_guild(server_id)
-        portkey = Portkeys(id).get()
 
-        await message.edit(embed=print_portkey(server, portkey))
+        if portkey_values := Portkeys(message_id=message.id).get():
+            await message.edit(embed=print_portkey(server, portkey_values))
+        else:
+            await message.delete()
     
     elif message.author.id == 952824326766333972:
         await interaction.channel.send("Something went very wrong here... the Portkey you are trying to edit has not yet been accepted!", delete_after=10)

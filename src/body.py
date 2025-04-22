@@ -46,13 +46,12 @@ class BOT(commands.Bot):
         game_midnight_reminder.start(server)
         midnight_reminder.start(server)
 
-        for message_id in WelcomeMessages().get_all(date=(datetime.now() - timedelta(days=14)))[::-1]:
+        for welcome_message in WelcomeMessages(date__greatequal=(datetime.now() - timedelta(days=14))).get_all()[::-1]:
             try:
                 channel = server.get_channel(channel_ids["welcome"])
-                message = await channel.fetch_message(message_id)
                 
-                user_id = re.sub(pattern=r'''\D+''', repl="", string=message.content)
-                user = server.get_member(int(user_id))
+                message = await channel.fetch_message(welcome_message["message_id"])
+                user = server.get_member(welcome_message["user_id"])
                 
                 self.add_view(view=WelcomeView(user=user, stickers=server.stickers), message_id=message.id)
             except NotFound:
@@ -65,7 +64,7 @@ class BOT(commands.Bot):
         if test_bot["local_deploy"]:
             
             
-
+            
             pass
         
         ### END ###
