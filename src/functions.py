@@ -223,15 +223,16 @@ def parse_portkey_data(server, message, member=None):
                 birthday_date = field.value.split(".")
                 
                 if birthday_date != ["-"]:
-                    birthday_date[2] = int(birthday_date[2]) if (int(birthday_date[2]) != datetime.now().year) else 1900
-                    birthday = datetime(day=int(birthday_date[0]), month=int(birthday_date[1]), year=int(birthday_date[2]))
+                    birthday = datetime(day=int(birthday_date[0]), month=int(birthday_date[1]), year=2000)
+                    if (year := birthday_date[2]-1900) == datetime.now().year-1900:
+                        year = None
                 else:
-                    birthday = None
+                    birthday, year = None, None
             
             elif idx == "7":
                 extra = field.value if (field.value != "-") else None
-            
-        return (user_id, game_id, from_wb, old_username, multiple_choice, additional_info, birthday, extra, 0,)
+        
+        return (user_id, game_id, from_wb, old_username, multiple_choice, additional_info, birthday, year, extra)
     else:
         raise ValueError("what you are trying to accept is not a Portkey")
 
@@ -271,7 +272,10 @@ def print_portkey(server, portkey):
     embed.add_field(name="4. In the game I like doing...", value=line_4, inline=False)
     
     if (not_skip := portkey["birthday"] is not None):
-        line_5 = portkey["birthday"].strftime("%d.%m.%Y") if portkey["birthday"].year != 1900 else portkey["birthday"].strftime("%d.%m")
+        if year := portkey["year"]:
+            portkey["birthday"].year = year + 1900
+
+        line_5 = portkey["birthday"].strftime("%d.%m.%Y") if year else portkey["birthday"].strftime("%d.%m")
         embed.add_field(name="5. I was born...", value=line_5, inline=False)
 
     if portkey["extra"]:

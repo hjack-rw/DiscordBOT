@@ -1,5 +1,5 @@
 from src.body import bot
-from src.db_classes import WelcomeMessages
+from src.db_classes import WelcomeMessages, Portkeys
 from src.functions import draw_infocard
 from src.tasks import print_notification
 from src.variables import test_bot, server_id, channel_ids_test
@@ -36,8 +36,13 @@ async def on_member_join(new_user):
 @bot.event
 async def on_member_remove(member):
     server = bot.get_guild(server_id)
-    channel = server.get_channel(channel_ids["welcome"])
+    
+    channel = server.get_channel(channel_ids["portkey-arrival"])
+    if message_id := Portkeys(user_id=member.id).archive():
+        message = await channel.fetch_message(message_id)
+        await message.delete()
 
-    message_id = WelcomeMessages().remove(user_id=member.id)
-    message = await channel.fetch_message(message_id)
-    await message.delete()
+    channel = server.get_channel(channel_ids["welcome"])
+    if message_id := WelcomeMessages().remove(user_id=member.id):
+        message = await channel.fetch_message(message_id)
+        await message.delete()

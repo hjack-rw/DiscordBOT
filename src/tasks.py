@@ -90,10 +90,8 @@ if test_bot["test_tasks"]:
 async def morning_reminder(server):
     today = datetime.now(tz=time_trigger["morning"].tzinfo)
 
-    portkeys = Portkeys().get()
-
     if not test_bot["test_tasks"]:
-        birthdays = [portkey["user_id"] for portkey in portkeys if (portkey["birthday"].month == today.month) and (portkey["birthday"].day == today.day)]
+        birthdays = Portkeys(message_id="unarchived", birthday=datetime(year=2000, month=today.month, day=today.day), specified_columns=["message_id", "birthday", "user_id"]).get(multiple=True)
     else:
         birthdays = [385899007991480321 for _ in range(1)]
 
@@ -166,7 +164,7 @@ async def club_events_reminder(server):
             trigger_club_events.change(to=True)
     
     # trigger every weekend
-    if (test_bot["test_tasks"] or today.weekday() in [4, 5, 6]):
+    if (test_bot["test_tasks"] or today.weekday() in [4, 6]):
         
         # delete the previous ones
         if not test_bot["test_tasks"]:
