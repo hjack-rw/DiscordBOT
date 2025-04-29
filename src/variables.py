@@ -1,4 +1,12 @@
-from pre_init import *
+try:
+    from pre_init import *
+except ImportError:
+    print("failed to import 'test_bot' from pre_init!")
+    test_bot = {"local_deploy": False,
+                "test_body":    False,
+                "test_command": False,
+                "test_events":  False,
+                "test_tasks":   False,}
 
 from datetime import datetime
 from dotenv import load_dotenv
