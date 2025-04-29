@@ -178,7 +178,7 @@ async def club_events_reminder(server):
             next_reset = today.replace(hour  =time_trigger["game_reset"].hour,
                                        minute=time_trigger["game_reset"].minute,
                                        second=time_trigger["game_reset"].second,
-                                       tz    =time_trigger["game_reset"].tzinfo,)
+                                       tzinfo=time_trigger["game_reset"].tzinfo,)
 
             delta = today - (next_reset + timedelta(days=1))
 
@@ -393,9 +393,10 @@ def convert_to_unix_time(date:datetime, mode:str):
     return f'<t:{int(time_module.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
 
 
-async def set_event_and_notification(server, event_info, trigger_day, event_duration, start_time, only_hour=True, time_delta=0):
+async def set_event_and_notification(server, event_info, date, event_duration, start_time, only_hour=True, time_delta=0):
     global delete_after
     
+    trigger_day = date
     if time_delta:
         trigger_day += timedelta(days=time_delta)
     
@@ -445,10 +446,11 @@ async def set_event_and_notification(server, event_info, trigger_day, event_dura
 
 
     if not test_bot["test_tasks"]:
+
         # create event
         try:
             await server.create_scheduled_event(name=event_name,
-                                                start_time=beginning.astimezone() if beginning > trigger_day else (trigger_day + timedelta(minutes=2)).astimezone(),
+                                                start_time=beginning.astimezone() if beginning > date else (date + timedelta(minutes=2)).astimezone(),
                                                 end_time=ending.astimezone(),
                                                 description=event_info["description"],
                                                 location=event_info["location"],
