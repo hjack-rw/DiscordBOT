@@ -46,7 +46,7 @@ class BOT(commands.Bot):
         game_midnight_reminder.start(server)
         midnight_reminder.start(server)
 
-        for welcome_message in WelcomeMessages(date__greatequal=(datetime.now() - timedelta(days=14))).get_all()[::-1]:
+        for welcome_message in WelcomeMessages(date__greatequal=(datetime.now() - timedelta(days=14)), order=["date-"]).get():
             try:
                 channel = server.get_channel(channel_ids["welcome"])
                 
