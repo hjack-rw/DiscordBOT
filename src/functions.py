@@ -224,7 +224,7 @@ def parse_portkey_data(server, message, member=None):
                 
                 if birthday_date != ["-"]:
                     birthday = datetime(day=int(birthday_date[0]), month=int(birthday_date[1]), year=2000)
-                    if (year := birthday_date[2]-1900) == datetime.now().year-1900:
+                    if (year := int(birthday_date[2])-1900) == datetime.now().year-1900:
                         year = None
                 else:
                     birthday, year = None, None
