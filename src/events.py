@@ -24,7 +24,7 @@ async def on_member_join(new_user):
         image = draw_infocard(new_user=new_user, all_members=len([member for member in server.members if not member.bot]))
         view = WelcomeView(user=new_user, stickers=server.stickers)
 
-        message = print_notification(server, date=None, event_name="Welcome", variables=[new_user, image, view])
+        message = await print_notification(server, date=None, event_name="Welcome", variables=[new_user, image, view])
 
         if not test_bot["test_events"]:
             WelcomeMessages().add(user_id=new_user.id, message_id=message.id, date=datetime.now())
