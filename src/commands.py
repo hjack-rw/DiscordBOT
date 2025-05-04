@@ -2,7 +2,7 @@ from src.body import bot
 from src.db_classes import ExtraVariable, WelcomeMessages, Portkeys
 from src.functions import standard_response, send_command, send_webhook, get_avatar, draw_infocard, get_json_info, print_portkey, parse_portkey_data, print_house_members
 from src.tasks import notification_dict, housecup_disciplines_names, print_notification
-from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color, base_housecup_date, wait_for, gameserver_timezone
+from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test, custom_avatars, system_embed_color, wait_for, gameserver_timezone, base_housecup_date
 from src.views import *
 
 from datetime import datetime, timedelta
@@ -294,7 +294,7 @@ async def post_portkey(interaction:Interaction, portkey_id:str):
             message = await channel.send(embed=print_portkey(server, portkey_values))
             portkey.unarchive(message_id=message.id)
         else:
-            await interaction.channel.send("Something went very wrong here... the Portkey is ARCHIVED!", delete_after=10)
+            await interaction.channel.send("Something went very wrong here... the Portkey was already UNARCHIVED!", delete_after=10)
 
     except IndexError:
         await interaction.channel.send("Something went very wrong here... there is no Portkey with that ID!", delete_after=10)
@@ -355,21 +355,41 @@ async def is_housecup_this_week(interaction:Interaction):
     ''' Informs you if there will be a House Cup this week '''
 
     today = datetime.now(tz=gameserver_timezone)
+    today = today.replace(hour=0,
+                          minute=0,
+                          second=0,
+                          microsecond=0,)
+    
+    disciplines = ExtraVariable(name="housecup_disciplines").get()
 
-    if (today.weekday() == 6):
-        trigger = False
+    trigger = False
+
+    if (delta := (today - base_housecup_date).days  % (14*4) - 1) > 50:    
+        trigger = True
+        discipline = disciplines[0]
+        text = "New Season!\nThe schedule hasn't been released yet."
     else:
-        next_saturday = datetime(year=today.year, month=today.month, day=today.day) + timedelta(days=5-today.weekday())
+        dates, text = [today - timedelta(days=delta)], []
+        for idx in range(4):
+            if idx != 0:
+                dates += [dates[-1] + timedelta(days=14)]
+            text += [f"{idx+1}. **{housecup_disciplines_names[disciplines[idx]]}** - {dates[-1].strftime('%d/%m/%Y')}\n"]
         
-        delta = next_saturday - (base_housecup_date + timedelta(days=1))
-        if trigger := (delta.days % 14 == 0):
-            housecup_disciplines = ExtraVariable(name="housecup_disciplines")
-            discipline = housecup_disciplines.get()[int(delta.days / 14) % 4]
+        if today.weekday() != 6:
+            next_saturday = today + timedelta(days=5-today.weekday())
+
+            try:
+                discipline = disciplines[dates.index(next_saturday)]
+                trigger = True
+            except ValueError:
+                pass
+
+    embed = Embed(color=system_embed_color, description="".join(text))
     
     if trigger:
-        await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup this week!", ephemeral=True)
+        await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup this week!", embed=embed, ephemeral=True)
     else:
-        await interaction.response.send_message("There's **NO** House Cup this week!", ephemeral=True)
+        await interaction.response.send_message("There's **NO** House Cup this week!", embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="house_members")

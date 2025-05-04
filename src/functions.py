@@ -224,7 +224,7 @@ def parse_portkey_data(server, message, member=None):
                 
                 if birthday_date != ["-"]:
                     birthday = datetime(day=int(birthday_date[0]), month=int(birthday_date[1]), year=2000)
-                    if (year := birthday_date[2]-1900) == datetime.now().year-1900:
+                    if (year := int(birthday_date[2])-1900) == datetime.now().year-1900:
                         year = None
                 else:
                     birthday, year = None, None
@@ -272,10 +272,12 @@ def print_portkey(server, portkey):
     embed.add_field(name="4. In the game I like doing...", value=line_4, inline=False)
     
     if (not_skip := portkey["birthday"] is not None):
+        birthday = portkey["birthday"]
+        
         if year := portkey["year"]:
-            portkey["birthday"].year = year + 1900
+            birthday = birthday.replace(year = year + 1900)
 
-        line_5 = portkey["birthday"].strftime("%d.%m.%Y") if year else portkey["birthday"].strftime("%d.%m")
+        line_5 = birthday.strftime("%d.%m.%Y") if year else birthday.strftime("%d.%m")
         embed.add_field(name="5. I was born...", value=line_5, inline=False)
 
     if portkey["extra"]:
