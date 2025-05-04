@@ -1,7 +1,7 @@
 from src.db_classes import WelcomeMessages
 from src.tasks import *
 from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test
-from src.views import WelcomeView
+from src.views import WelcomeView, MemberView
 
 import re
 
@@ -46,6 +46,8 @@ class BOT(commands.Bot):
         game_midnight_reminder.start(server)
         midnight_reminder.start(server)
 
+
+        # reactivate WelcomeViews
         for welcome_message in WelcomeMessages(date__greatequal=(datetime.now() - timedelta(days=14)), order=["date-"]).get():
             try:
                 channel = server.get_channel(channel_ids["welcome"])
@@ -56,9 +58,22 @@ class BOT(commands.Bot):
                 self.add_view(view=WelcomeView(user=user, stickers=server.stickers), message_id=message.id)
             except NotFound:
                 pass
+
         
+        # reactivate MemberView
+        channel = server.get_channel(channel_ids["sorting-hat"])
+        bot_message_id = 1369590818192494668
+
+        message = await channel.fetch_message(bot_message_id)
+        message_view = MemberView(server.members, message)
+
+        self.add_view(view=message_view, message_id=bot_message_id)
+        await message_view.print_list()
+        
+
         if test_bot["test_events"]:
             self.dispatch('member_join', server.get_member(385899007991480321))
+            self.dispatch('member_remove', server.get_member(385899007991480321))
 
         ### TESTS HERE ###
         if test_bot["local_deploy"]:

@@ -3,6 +3,7 @@ from src.tasks import housecup_disciplines_names
 
 from discord.components import SelectOption
 from discord.enums import ButtonStyle
+from discord.ext import commands
 from discord.interactions import Interaction
 from discord.partial_emoji import PartialEmoji
 from discord.ui import button, Button, View, Select
@@ -32,18 +33,17 @@ class WelcomeView(View):
         elif interaction.user.id == self.user.id:
             return await interaction.response.send_message("You can't do it yourself, let others greet you!", ephemeral=True)
 
+        if interaction.user.id not in self.clicked_users:
+            self.clicked_users += [interaction.user.id]
+
+            sticker = choice(self.stickers)
+
+            # TODO! If they ever allow webhooks to send stickers
+            await interaction.response.send_message("Your message has been sent!", ephemeral=True)
+            await interaction.message.reply(content=f"<@{interaction.user.id}> says: Welcome <@{self.user.id}>! {sticker.description}", stickers=[sticker])
+
         else:
-            if interaction.user.id not in self.clicked_users:
-                self.clicked_users += [interaction.user.id]
-
-                sticker = choice(self.stickers)
-
-                # TODO! If they ever allow webhooks to send stickers
-                await interaction.response.send_message("Your message has been sent!", ephemeral=True)
-                await interaction.message.reply(content=f"<@{interaction.user.id}> says: Welcome <@{self.user.id}>! {sticker.description}", stickers=[sticker])
-
-            else:
-                await interaction.response.send_message("We limited the interactions to one greeting per user!", ephemeral=True)
+            await interaction.response.send_message("We limited the interactions to one greeting per user!", ephemeral=True)
 
 
 # dropdown select
@@ -73,12 +73,15 @@ class DropdownView(View):
 
 # view members list
 class MemberView(View):
-    def __init__(self, members, message):
+    def __init__(self, members, message, is_command=False):
         super().__init__(timeout=None)
         self.page = 0
         self.filter = 0
         self.members = members
         self.message = message
+
+        self.is_command = is_command
+        self.cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=5, type=commands.BucketType.member)
     
     # print new list
     async def print_list(self):
@@ -90,29 +93,43 @@ class MemberView(View):
             return 0
         elif turnable < 0:
             return max
-        else:
-            return turnable
+        return turnable
     
+    def cooldown_interaction(func):
+        async def response(self, *args):
+            (interaction, button) = args
+            
+            if not self.is_command:
+                interaction.message.author = interaction.user
+                bucket = self.cooldown.get_bucket(interaction.message)
+                retry = bucket.update_rate_limit()
+
+                if retry:
+                    return await interaction.response.send_message(f"Slow down! Try again in {round(retry, 1)} seconds.", ephemeral=True)
+            
+                args = (interaction, button)
+
+            func(self, *args)
+
+            await self.print_list()
+            return await interaction.response.defer()
+    
+        return response
+
     @button(label="",  style=ButtonStyle.grey, emoji="⬅️", custom_id="left")
-    async def turn_left(self, interaction: Interaction, button: Button):
-        page = self.page - 1
-        self.page = self.turn_limit(page, max=3)
-        
-        await self.print_list()
-        await interaction.response.defer()
+    @cooldown_interaction
+    def turn_left(self, interaction: Interaction, button: Button):
+        self.page = self.turn_limit(turnable=(self.page-1), max=3)
 
     @button(label="",  style=ButtonStyle.grey, emoji="➡️", custom_id="right")
-    async def turn_right(self, interaction: Interaction, button: Button):
-        page = self.page + 1
-        self.page = self.turn_limit(page, max=3)
-        
-        await self.print_list()
-        await interaction.response.defer()
+    @cooldown_interaction
+    def turn_right(self, interaction: Interaction, button: Button):
+        self.page = self.turn_limit(turnable=(self.page+1), max=3)
     
     @button(label="GOP",  style=ButtonStyle.red, custom_id="filter")
-    async def switch_filter(self, interaction: Interaction, button: Button):
-        filter = self.filter + 1
-        self.filter = self.turn_limit(filter, max=2)
+    @cooldown_interaction
+    def switch_filter(self, interaction: Interaction, button: Button):
+        self.filter = self.turn_limit(turnable=(self.filter+1), max=2)
 
         if self.filter == 0:
             self.children[2].label = "GOP"
@@ -123,6 +140,3 @@ class MemberView(View):
         else:
             self.children[2].label = "Cross Guild"
             self.children[2].style = ButtonStyle.blurple
-        
-        await self.print_list()
-        await interaction.response.defer()

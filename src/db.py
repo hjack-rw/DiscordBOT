@@ -406,12 +406,14 @@ class Database():
 
         if type == "bool":
             return bool(value)
-        elif "binary" in type:
-            return ('{0:0' + type.split("_")[1] + 'b}').format(value)
-        elif "permutation" in type:
-            return permutation(value, requirements=type.split('_'))
         elif type == "datetime":
             return convert_int_to_date(value)
+        elif "binary" in type:
+            return ('{0:0' + type.split("_")[1] + 'b}').format(value)
+        elif type == "str":
+            return value.replace("`", "'")
+        elif "permutation" in type:
+            return permutation(value, requirements=type.split('_'))
         return value
     
     def _return_value(self, value, type):
@@ -426,13 +428,13 @@ class Database():
             value = int(value)
         elif type == "datetime":
             value = convert_date_to_int(value)
-        elif type == "permutation":
-            value = value.convert_permutation_to_int()
-        elif type in ["str", "binary"]: 
+        elif type in ["binary", "str"]: 
             if is_binary(value):
                 value = int(value, 2)
             else:
-                return f"'{value}'"
+                return "'" + value.replace("'", "`") + "'"
+        elif type == "permutation":
+            value = value.convert_permutation_to_int()
         return value
 
 # Database structure
