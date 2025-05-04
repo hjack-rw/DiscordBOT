@@ -1,6 +1,6 @@
 from src.db_classes import ExtraVariable, Portkeys
 from src.functions import send_webhook, replace_multiple, get_image
-from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color, base_housecup_date, wait_for, gameserver_timezone, main_timezone
+from src.variables import test_bot, channel_ids, channel_ids_test, system_embed_color, wait_for, gameserver_timezone, main_timezone, base_housecup_date
 
 from datetime import datetime, time, timedelta
 
@@ -178,15 +178,10 @@ async def club_events_reminder(server):
             next_reset = today.replace(hour  =time_trigger["game_reset"].hour,
                                        minute=time_trigger["game_reset"].minute,
                                        second=time_trigger["game_reset"].second,
-                                       tzinfo=time_trigger["game_reset"].tzinfo,)
+                                       tzinfo=time_trigger["game_reset"].tzinfo,) + timedelta(days=1)
 
-            delta = today - (next_reset + timedelta(days=1))
-
-            delete_after["hours"]   = delta.hours
-            delete_after["minutes"] = delta.minutes
-            delete_after["seconds"] = delta.seconds
-
-            await message.delete(delay=(delete_after["hours"]*3600)+(delete_after["minutes"]*60)+delete_after["seconds"])
+            delta = next_reset - today
+            await message.delete(delay=delta.seconds)
 
 
 # game_midnight reminder:
@@ -243,7 +238,10 @@ async def print_notification(server, date, event_name, variables=[], is_task=Tru
         if test_bot["test_tasks"] and event_name not in ["Welcome", "Card - Book of Monsters", "Card - Cornish Pixies", "Club Points"]:
             print(f'''"{task}" task running... {datetime.now()}!''')
     else:
-        date = date.astimezone(tz=time_trigger[task].tzinfo)
+        try:
+            date = date.astimezone(tz=time_trigger[task].tzinfo)
+        except KeyError:
+            pass
 
     file, view = None, None
 
