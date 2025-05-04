@@ -56,7 +56,7 @@ wait_for = 2 # seconds
 discord_token = os.getenv("DISCORD_TOKEN")
 bot_token = os.getenv("DISCORD_BOT_TOKEN")
 system_embed_color = 16777215
-base_housecup_date = datetime(year=2025, month=1, day=10)
 
 gameserver_timezone = ZoneInfo("Africa/Khartoum")
 main_timezone = ZoneInfo("Europe/London")
+base_housecup_date = datetime(year=2025, month=1, day=10, tzinfo=gameserver_timezone)
