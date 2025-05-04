@@ -243,7 +243,10 @@ async def print_notification(server, date, event_name, variables=[], is_task=Tru
         if test_bot["test_tasks"] and event_name not in ["Welcome", "Card - Book of Monsters", "Card - Cornish Pixies", "Club Points"]:
             print(f'''"{task}" task running... {datetime.now()}!''')
     else:
-        date = date.astimezone(tz=time_trigger[task].tzinfo)
+        try:
+            date = date.astimezone(tz=time_trigger[task].tzinfo)
+        except KeyError:
+            pass
 
     file, view = None, None
 
