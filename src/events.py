@@ -24,10 +24,13 @@ async def on_member_join(new_user):
         image = draw_infocard(new_user=new_user, all_members=len([member for member in server.members if not member.bot]))
         view = WelcomeView(user=new_user, stickers=server.stickers)
 
-        message = print_notification(server, date=None, event_name="Welcome", variables=[new_user, image, view])
+        message = await print_notification(server, date=None, event_name="Welcome", variables=[new_user, image, view])
 
         if not test_bot["test_events"]:
             WelcomeMessages().add(user_id=new_user.id, message_id=message.id, date=datetime.now())
+    
+        await bot.members_view.update_members(members=server.members)
+    
     else:
         print(f"BOT: {new_user.name} joined the server!")
 
@@ -36,13 +39,16 @@ async def on_member_join(new_user):
 @bot.event
 async def on_member_remove(member):
     server = bot.get_guild(server_id)
-    
-    channel = server.get_channel(channel_ids["portkey-arrival"])
-    if message_id := Portkeys(user_id=member.id).archive():
-        message = await channel.fetch_message(message_id)
-        await message.delete()
 
-    channel = server.get_channel(channel_ids["welcome"])
-    if message_id := WelcomeMessages().remove(user_id=member.id):
-        message = await channel.fetch_message(message_id)
-        await message.delete()
+    await bot.members_view.update_members(members=server.members)
+    
+    if not test_bot["test_events"]:
+        channel = server.get_channel(channel_ids["portkey-arrival"])
+        if message_id := Portkeys(user_id=member.id).archive():
+            message = await channel.fetch_message(message_id)
+            await message.delete()
+
+        channel = server.get_channel(channel_ids["welcome"])
+        if message_id := WelcomeMessages().remove(user_id=member.id):
+            message = await channel.fetch_message(message_id)
+            await message.delete()

@@ -98,7 +98,7 @@ class Portkeys(Database):
     def get(self, multiple=False):
         if not multiple:
             try:
-                return self._get_values_from_raw_data(self.raw_data)[0]
+                return self._get_values_from_raw_data(self.raw_data, add_id=True)[0]
             except IndexError:
                 return None
         return [portkey["user_id"] for portkey in self._get_values_from_raw_data(self.raw_data)]

@@ -6,7 +6,7 @@ if __name__ == '__main__':
 
 #TODO! rework the sorthing-hat channel:
 # ~house picking system and change nickname~
-# - add the member lsit permanent
+# ~add the member list permanent~
 # - subscription system (see bellow:)
 
 #TODO! subscription system:
