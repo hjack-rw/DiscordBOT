@@ -46,11 +46,11 @@ custom_avatars = {"Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypo
                   "Prof. Flitwick":   "https://www.superherodb.com/pictures2/portraits/10/050/13801.jpg?v=1637971200",
                   "Mr. Filch":        "https://www.tafce.com/images/c/c6/Mr_Filch_HPATGOF_-_Edited.png",}
 
-houses = {"gryffindor": "<:gryffindor:1255656359190462484> Gryffindor",
-          "hufflepuff": "<:hufflepuff:1255656360780238849> Hufflepuff",
-          "ravenclaw" : "<:ravenclaw:1255656362617212999> Ravenclaw",
-          "slytherin" : "<:slytherin:1255656364244729856> Slytherin",
-          "BOTS"      : ""}
+houses = {"gryffindor": {"emoji": "<:gryffindor:1255656359190462484> Gryffindor", "crest": "https://static.wikia.nocookie.net/pottermore/images/1/16/Gryffindor_crest.png/revision/latest?cb=20111112232412"},
+          "hufflepuff": {"emoji": "<:hufflepuff:1255656360780238849> Hufflepuff", "crest": "https://static.wikia.nocookie.net/pottermore/images/5/5e/Hufflepuff_crest.png/revision/latest?cb=20111112232427"},
+          "ravenclaw" : {"emoji": "<:ravenclaw:1255656362617212999> Ravenclaw",   "crest": "https://static.wikia.nocookie.net/pottermore/images/4/40/Ravenclaw_Crest_1.png/revision/latest?cb=20140604194505"},
+          "slytherin" : {"emoji": "<:slytherin:1255656364244729856> Slytherin",   "crest": "https://static.wikia.nocookie.net/pottermore/images/4/45/Slytherin_Crest.png/revision/latest?cb=20111112232353"},
+          "BOTS"      : {"emoji": "",                                             "crest": ""},}
 
 wait_for = 2 # seconds
 discord_token = os.getenv("DISCORD_TOKEN")

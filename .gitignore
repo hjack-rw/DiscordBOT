@@ -2,6 +2,8 @@
 requirements.txt
 pre_init.py
 test_db.py
+test_image.py
+test_images/test_1.png
 __pycache__/pre_init.cpython-310.pyc
 src/env
 src/__database__.db

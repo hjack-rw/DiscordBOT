@@ -44,6 +44,7 @@ def notification_dict(is_short=False):
 delete_after = {"hours":0, "minutes":0, "seconds":0}
 
 weekdays = {0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
+months   = {"01|January": 1, "02|February": 2, "03|March": 3, "04|April": 4, "05|May": 5, "06|June": 6, "07|July": 7, "08|August": 8, "09|September": 9, "10|October": 10, "11|November": 11, "12|December": 12}
 
 housecup_disciplines_names = {0: "Best Partners",
                               1: "Dance Club",

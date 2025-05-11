@@ -4,6 +4,13 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
+#TODO! backup database
+
+#TODO! leaderboard:
+# - make the db record: id, xp and custom_username, offset (?)
+# - while giving points post to channel
+# - send the level up massege on both command and auto
+
 #TODO! rework the sorthing-hat channel:
 # ~house picking system and change nickname~
 # ~add the member list permanent~
@@ -13,9 +20,6 @@ if __name__ == '__main__':
 # pick a subscription and add the role to members before the event
 # clear all subscriptions on another button
 # IMPORTANT: check if clearing the role keeps the notification!
-
-#TODO! create own custom cards for leaderboard:
-# chocolate frog theme, with house colors
 
 #TODO! portkey:
 # automatic add to a paste service
