@@ -1,4 +1,5 @@
 .gitignore
+system_variables
 requirements.txt
 pre_init.py
 test_db.py
@@ -8,6 +9,7 @@ __pycache__/pre_init.cpython-310.pyc
 src/env
 src/__database__.db
 src/__database__.db-journal
+src/__database__.db-dump
 src/__pycache__/__init__.cpython-310.pyc
 src/__pycache__/body.cpython-310.pyc
 src/__pycache__/commands.cpython-310.pyc

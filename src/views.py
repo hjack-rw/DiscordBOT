@@ -1,5 +1,5 @@
 from src.functions import print_house_members
-from src.tasks import housecup_disciplines_names
+from src.variables import housecup_disciplines_names
 
 from discord.components import SelectOption
 from discord.enums import ButtonStyle
@@ -51,7 +51,6 @@ class DropdownView(View):
     def __init__(self, options):
         super().__init__(timeout=None)
         self.add_item(self.DropdownList(options))
-        self.options = options
         self.picked = None
     
     async def respond(self, interaction:Interaction, choice):
@@ -75,12 +74,13 @@ class DropdownView(View):
 class MemberView(View):
     def __init__(self, members, message, is_command=False):
         super().__init__(timeout=None)
-        self.page = 0
-        self.filter = 0
         self.members = members
         self.message = message
-
         self.is_command = is_command
+
+        self.page = 0
+        self.filter = 0
+
         self.cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=5, type=commands.BucketType.member)
     
     # print a new list

@@ -8,7 +8,7 @@ except ImportError:
                 "test_events":  False,
                 "test_tasks":   False,}
 
-from datetime import datetime
+from datetime import datetime, time
 from dotenv import load_dotenv
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -52,11 +52,55 @@ houses = {"gryffindor": {"emoji": "<:gryffindor:1255656359190462484> Gryffindor"
           "slytherin" : {"emoji": "<:slytherin:1255656364244729856> Slytherin",   "crest": "https://static.wikia.nocookie.net/pottermore/images/4/45/Slytherin_Crest.png/revision/latest?cb=20111112232353"},
           "BOTS"      : {"emoji": "",                                             "crest": ""},}
 
+housecup_disciplines_names = {0: "Best Partners",
+                              1: "Dance Club",
+                              2: "Top Wizard",
+                              3: "History of Magic",
+                              4: "Muggle Studies",
+                              5: "Casual Matches",
+                              6: "Qudditch",}
+
+gameserver_timezone = ZoneInfo("Africa/Khartoum")
+main_timezone = ZoneInfo("Europe/London")
+
+weekdays = {0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
+months   = {"01|January": 1, "02|February": 2, "03|March": 3, "04|April": 4, "05|May": 5, "06|June": 6, "07|July": 7, "08|August": 8, "09|September": 9, "10|October": 10, "11|November": 11, "12|December": 12}
+
+time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=gameserver_timezone), # UTC+2 - 03:00 - exact
+                "morning":       time(hour=7,  minute=0,  second=0, tzinfo=main_timezone),       # UTC+1 - 08:00 - exact
+                "weekly_cards":  time(hour=16, minute=59, second=0, tzinfo=gameserver_timezone), # UTC+2 - 16:00 - exact
+                "housecup":      time(hour=19, minute=0,  second=0, tzinfo=gameserver_timezone), # UTC+2 - 18:00 - 24 h early
+                "club_events":   time(hour=19, minute=25, second=0, tzinfo=main_timezone),       # UTC+1 - 20:30 - 5 min early
+                "game_midnight": time(hour=23, minute=0,  second=0, tzinfo=gameserver_timezone), # UTC+2 - 23:00 - 1 h early
+                "midnight":      time(hour=23, minute=0,  second=0, tzinfo=main_timezone),}      # UTC+1 - 24:00 - 1 h early
+
+def notification_dict(is_short=False):
+    full_dict = {"Welcome": "event",
+                 "Birthday": "morning",
+                 "Card - Matagot": "weekly_cards",
+                 "Card - Book of Monsters": "weekly_cards",
+                 "Card - Cornish Pixies": "weekly_cards",
+                 "Housecup": "housecup",
+                 "Club Events": "club_events",
+                 "Club Points": "club_events",
+                 "Maintenance": "game_midnight",
+                 "Rankings": "midnight",}
+    
+    if is_short:
+        seen, time_triggers = set(), set(time_trigger.keys())
+
+        short_dict = {}
+        for key, value in full_dict.items():
+            if (value not in seen) and (value in time_triggers):
+                short_dict[key] = value
+                seen.add(value)
+    
+        return short_dict
+    return full_dict
+
 wait_for = 2 # seconds
 discord_token = os.getenv("DISCORD_TOKEN")
 bot_token = os.getenv("DISCORD_BOT_TOKEN")
 system_embed_color = 16777215
 
-gameserver_timezone = ZoneInfo("Africa/Khartoum")
-main_timezone = ZoneInfo("Europe/London")
 base_housecup_date = datetime(year=2025, month=1, day=10, tzinfo=gameserver_timezone)

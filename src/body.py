@@ -1,9 +1,10 @@
+from src.db import Database
 from src.db_classes import WelcomeMessages
 from src.tasks import *
 from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test
 from src.views import WelcomeView, MemberView
 
-import re
+import atexit
 
 from datetime import datetime, timedelta
 from discord.errors import NotFound
@@ -25,6 +26,12 @@ class BOT(commands.Bot):
     
     def __init__(self):
         super().__init__(command_prefix="/", intents=Intents.all(), application_id=bot_id)
+        
+        self.db = Database
+        self.db.connect()
+        atexit.register(self.db.disconnect)
+
+        self.user_last_executed = {}
 
     async def on_ready(self):
         print(f"{'Deployed' if any(test_bot.values()) else 'Logged on as'} {self.user}!")
@@ -36,43 +43,42 @@ class BOT(commands.Bot):
         except Exception as error:
             print(error)
         
-        server = self.get_guild(server_id)
+        SERVER = self.server = self.get_guild(server_id)
 
-        #game_reset_reminder.start(server)
-        morning_reminder.start(server)
-        weekly_cards_reminder.start(server)
-        housecup_reminder.start(server)
-        club_events_reminder.start(server)
-        game_midnight_reminder.start(server)
-        midnight_reminder.start(server)
+        #game_reset_reminder.start(SERVER)
+        morning_reminder.start(self)
+        weekly_cards_reminder.start(SERVER)
+        housecup_reminder.start(SERVER)
+        club_events_reminder.start(SERVER)
+        game_midnight_reminder.start(SERVER)
+        midnight_reminder.start(SERVER)
 
 
         # reactivate WelcomeViews
         for welcome_message in WelcomeMessages(date__greatequal=(datetime.now() - timedelta(days=14)), order=["date-"]).get():
             try:
-                channel = server.get_channel(channel_ids["welcome"])
+                CHANNEL = SERVER.get_channel(channel_ids["welcome"])
                 
-                message = await channel.fetch_message(welcome_message["message_id"])
-                user = server.get_member(welcome_message["user_id"])
+                message = await CHANNEL.fetch_message(welcome_message["message_id"])
+                user = SERVER.get_member(welcome_message["user_id"])
                 
-                self.add_view(view=WelcomeView(user=user, stickers=server.stickers), message_id=message.id)
+                self.add_view(view=WelcomeView(user=user, stickers=SERVER.stickers), message_id=message.id)
             except NotFound:
                 pass
 
         
         # reactivate MemberView
-        members_message_id = 1369590818192494668
-        channel = server.get_channel(channel_ids["sorting-hat"])
-        members_message = await channel.fetch_message(members_message_id)
+        CHANNEL         = SERVER.get_channel(channel_ids["sorting-hat"])
+        MEMBERS_MESSAGE = await CHANNEL.fetch_message(1369590818192494668)
         
-        self.members_view = MemberView(members=server.members, message=members_message)
-        self.add_view(view=self.members_view, message_id=members_message_id)
+        self.members_view = MemberView(members=SERVER.members, message=MEMBERS_MESSAGE)
+        self.add_view(view=self.members_view, message_id=MEMBERS_MESSAGE.id)
         await self.members_view.print_list()
         
 
         if test_bot["test_events"]:
-            self.dispatch('member_join', server.get_member(385899007991480321))
-            self.dispatch('member_remove', server.get_member(385899007991480321))
+            self.dispatch('member_join', SERVER.get_member(385899007991480321))
+            self.dispatch('member_remove', SERVER.get_member(385899007991480321))
 
         ### TESTS HERE ###
         if test_bot["local_deploy"]:
@@ -83,5 +89,6 @@ class BOT(commands.Bot):
         
         ### END ###
 
+############################################################################################################
 
 bot = BOT()
