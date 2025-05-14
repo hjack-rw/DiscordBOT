@@ -1,11 +1,12 @@
-from src.variables import test_bot, server_id, webhook_id, custom_avatars, houses, wait_for, absolute_path, discord_token, bot_token, system_embed_color
+import src.variables as vars
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import reduce
 from PIL import Image, ImageFont, ImageDraw, ImageFilter
 
 import copy
 import csv
+import functools
 import io
 import json
 import re
@@ -14,16 +15,33 @@ import time
 import requests
 session = requests.Session()
 
+from discord.app_commands.errors import CommandInvokeError
 from discord.embeds import Embed
+from discord.enums import EntityType, PrivacyLevel
 from discord.file import File
+from discord.interactions import Interaction
 from discord.utils import MISSING
+
+from typing import Callable, Awaitable, TypeVar, ParamSpec
+P = ParamSpec("P") # parameters
+R = TypeVar("R")   # returns
 
 
 # SETTINGS
 # for testing
-# test_bot["test_command"] = True # overwrite if needed
+# vars.test_bot["test_command"] = True # overwrite if needed
+# vars.test_bot["test_tasks"] = True # overwrite if needed
 
-headers = {"authorization": f"Bot {bot_token}",
+
+delete_after = {"hours":0, "minutes":0, "seconds":0}
+
+if vars.test_bot["test_tasks"]:
+    channel_ids = vars.channel_ids_test
+    delete_after["minutes"] = vars.wait_for * 2
+else:
+    channel_ids = vars.channel_ids
+
+headers = {"authorization": f"Bot {vars.bot_token}",
            "content-type": "application/json",
            "user-agent": "BOT (http://discord.com, v1.0)",}
 
@@ -83,41 +101,63 @@ form_answers = ["🤺 Solo Dueling",
                 "🕺💃 Dancing",
                 "📸 Photoshoots",]
 
+############################################################################################################
 
-async def standard_response(interaction):
-    await interaction.response.send_message("A wizard must show patience... please, wait for the command to finish!", ephemeral=True)
+def standard_response(silent: bool=False):
+    def run(func: Callable[P, Awaitable[R]]):
+        @functools.wraps(func)
+        async def response(*args: P.args, **kwargs: P.kwargs) -> R:
+            interaction: Interaction = kwargs.get("interaction") or args[0]
+            
+            if not silent:
+                await interaction.response.send_message("A wizard must show patience... please, wait for the command to finish!", ephemeral=True)
+
+            try:
+                return await func(*args, **kwargs)
+            except Exception as error:
+                try:
+                    await interaction.followup.send(f"Something went very wrong here... {error}!", ephemeral=True)
+                except Exception as followup_error:
+                    print(f"Failed to send error follow-up: {followup_error}")
+        
+        return response
+    return run
+
 
 async def wait_till_posted(channel, idx):
+    test = vars.test_bot["test_command"]
+    
     while len([message async for message in channel.history(limit=None)]) != idx:
-        if test_bot["test_command"]:
+        if test:
             break
     
     print("endless loop finished!")
 
+
 async def send_command(target_channel_id, app_id, version, id, command, options=[]):
     payload = {"type":2,
                "application_id":str(app_id),
-               "guild_id":str(server_id),
+               "guild_id":str(vars.server_id),
                "channel_id":str(target_channel_id),
                "session_id":"3794653e1bf277766e6356b596fd495d",
                "data":{"version":str(version), "id":str(id), "name":command, "type":1, "options": options}}
     
     # overwrite headers
-    headers = {"authorization": str(discord_token),
+    headers = {"authorization": str(vars.discord_token),
                "content-type": "application/json",}
 
     response = session.post(url="https://discord.com/api/v9/interactions", json=payload, headers=headers,)
     #print(response)
 
     if response.status_code < 300:
-        time.sleep(wait_for)
+        time.sleep(vars.wait_for)
     else:
-        raise ValueError("FAILED TO SEND COMMAND!")
+        raise Exception("failed to send command!")
 
 
 def change_webhook_channel(target_channel):
     payload = {"channel_id":target_channel.id}
-    return session.patch(f"https://discordapp.com/api/webhooks/{webhook_id}", json=payload, headers=headers,)
+    return session.patch(f"https://discordapp.com/api/webhooks/{vars.webhook_id}", json=payload, headers=headers,)
 
 
 async def send_webhook(target_channel, user_name, user_avatar_url=None, content="", embed=None, file=None, view=None):            
@@ -127,12 +167,12 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
 
     if user_avatar_url is None:
         try:
-            user_avatar_url = custom_avatars[user_name]
+            user_avatar_url = vars.custom_avatars[user_name]
         except KeyError:
-            user_avatar_url = custom_avatars["Prof. Dumbledore"]
+            user_avatar_url = vars.custom_avatars["Prof. Dumbledore"]
 
     if response.status_code == 200:
-        webhook = [webhook for webhook in await target_channel.webhooks() if webhook.id == webhook_id][0]
+        webhook = [webhook for webhook in await target_channel.webhooks() if webhook.id == vars.webhook_id][0]
         
         embed = embed if embed else MISSING
         file = file if file else MISSING
@@ -140,8 +180,9 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
 
         return await webhook.send(content=content, username=user_name, avatar_url=user_avatar_url, embed=embed, file=file, view=view, wait=True)
     else:
-        raise ValueError("FAILED TO CREATE WEBHOOK!")
+        raise Exception("failed to create webhook")
 
+############################################################################################################
 
 def replace_multiple(string:str, replace_list:list, self_idx=True):
     if self_idx:
@@ -151,29 +192,86 @@ def replace_multiple(string:str, replace_list:list, self_idx=True):
     return reduce(lambda a, kv: a.replace(*kv), replace_list, string)
 
 
+def convert_to_unix_time(date:datetime, mode:str):
+    
+    # get a tuple of the date attributes
+    date_tuple = (date.year, date.month, date.day, date.hour, date.minute, date.second)
+
+    # convert to unix time
+    return f'<t:{int(time.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
+
+
+def catch_error(dict:dict, keys:list):
+    for key in keys:
+        try:
+            dict[key]
+        except KeyError:
+            dict[key] = None
+    else:
+        return dict
+
+
+def remove_extra_characters(string:str, is_id:bool=False):
+    if is_id:
+        return re.sub(r'''\D''', "", string)
+    else:
+        return replace_multiple(string.lstrip(" ").rstrip(" "), [("\r", ""), ("\n", "")], self_idx=False)
+
+ 
+def parse_multiple_possibilities(value:str):
+    if len(list := [remove_extra_characters(value) for value in value.split("|")]) == 1:
+        list += [None]
+    return list
+
+############################################################################################################
+
+def get_today():
+    def run(func):
+        @functools.wraps(func)
+        async def insert_today(*args, **kwargs):
+            func_name = func.__name__
+            if not func_name.endswith("_reminder"):
+                raise ValueError(f"Function name '{func_name}' should end with '_reminder'.")
+
+            time_key = func.__name__.replace("_reminder", "")
+            if time_key not in vars.time_trigger:
+                raise ValueError(f"Time key '{time_key}' not found in time_trigger.")
+
+            kwargs['today'] = datetime.now(tz=vars.time_trigger[time_key].tzinfo)
+
+            return await func(*args, **kwargs)
+        return insert_today
+    return run
+
+
 def get_json(url):
+    
     # create HTTP response object 
     response = requests.get(url)
 
     try:
         return json.loads(response.content)
     except:
-        raise ValueError("NO JSON FILE FOUND!")
+        raise Exception("no JSON file found")
+
 
 def get_csv(url):
+    
     # create HTTP response object 
     response = requests.get(url)
     content  = response.content.decode('utf-8').replace("\ufeff", "").splitlines()
 
     # TODO! make it universal
     try:
-        return [{key:int(value) for key,value in row.items() if key != "_"} for row in csv.DictReader(f=content[1:], fieldnames=["_", "_", "id", "xp", "_", "_", "_", "_"])]
+        return [{key:int(value) for key,value in row.items() if key != "_"} for row in csv.DictReader(f=content[1:], fieldnames=["_", "_", "user_id", "xp", "_", "_", "_", "_"])]
     except:
-        raise ValueError("NO CSV FILE FOUND!")
+        raise Exception("no CSV file found")
+
 
 def get_image(url):
     response = session.get(url,)
     return response.content
+
 
 def get_avatar(user, none=False):
     try:
@@ -181,7 +279,35 @@ def get_avatar(user, none=False):
     except AttributeError:
         if none:
             return None
-        return user.default_avatar._ur
+        return user.default_avatar._url
+
+
+def get_level_and_progress(exp_total):
+    exp = 0
+    level = 0
+
+    # Calculate current level
+    while True:
+        exp_for_next_level = 5 * (level ** 2) + (50 * level) + 100
+        if exp + exp_for_next_level > exp_total:
+            break
+        exp += exp_for_next_level
+        level += 1
+
+    # Progress within the current level
+    exp_into_next_level = exp_total - exp
+    percent = exp_into_next_level / exp_for_next_level
+
+    return level, percent
+
+
+def get_member_id_by_nick(server, nick):
+    try:
+        return [member.id for member in server.members if member.nick == nick][0]
+    except IndexError:
+        return None
+
+############################################################################################################
 
 def scale_image(base_width, image):
     x, y = image.size
@@ -192,8 +318,10 @@ def scale_image(base_width, image):
     h_size = int(round(y * w_percent))
     return image.resize((w_size, h_size), Image.Resampling.LANCZOS)
 
+
 def check_shape(shape):
     return [(int(round(x)), int(round(y))) for x,y in shape]
+
 
 def get_position(center, image_center, offset=(0,0)):
     x, y = center
@@ -202,9 +330,10 @@ def get_position(center, image_center, offset=(0,0)):
     
     return check_shape(shape=[(x - (w_size / 2) + x_off, y - (h_size / 2) + y_off)])[0]
 
+############################################################################################################
 
-def draw_infocard(new_user, all_members):
-    background = Image.open(absolute_path + "image_module/card_template.png")
+def draw_infocard(new_user, all_members_count):
+    background = Image.open(vars.absolute_path + "image_module/card_template.png")
     
     ## profile picture ##
     url = get_avatar(user=new_user)
@@ -231,9 +360,9 @@ def draw_infocard(new_user, all_members):
     ## text ##
     # add nickname
     if len(new_user.name) > 15:
-        name_font = ImageFont.truetype(font=(absolute_path + "image_module/RUNES.ttf"), size=80)
+        name_font = ImageFont.truetype(font=(vars.absolute_path + "image_module/RUNES.ttf"), size=80)
     else:
-        name_font = ImageFont.truetype(font=(absolute_path + "image_module/RUNES.ttf"), size=100)
+        name_font = ImageFont.truetype(font=(vars.absolute_path + "image_module/RUNES.ttf"), size=100)
 
     if len(new_user.name) > 9:
         draw.text(xy=(995,115), text=new_user.name, fill=(235,235,235), font=name_font, align="center", anchor='rm')
@@ -241,8 +370,8 @@ def draw_infocard(new_user, all_members):
         draw.text(xy=(795,115), text=new_user.name, fill=(235,235,235), font=name_font, align="center", anchor='mm')
     
     # add footer
-    footer_font = ImageFont.truetype(font=(absolute_path + "image_module/MAGIC.ttf"), size=35)
-    draw.text(xy=(790,200), text=f"We are now {all_members} members!", fill=(235,235,235), font=footer_font, align="center", anchor='mm')
+    footer_font = ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=35)
+    draw.text(xy=(790,200), text=f"We are now {all_members_count} members!", fill=(235,235,235), font=footer_font, align="center", anchor='mm')
 
     
     ## save and return file ##
@@ -253,23 +382,20 @@ def draw_infocard(new_user, all_members):
     return File(bytes, filename="card.png")
 
 
-def draw_leaderboard(member, rank, house, level, progress, static):
-    background, profile_border, full_bar, bar_mask, marker, \
-    MAGIC_font_88, MAGIC_font_45, MAGIC_font_42, RUNES_font_88, RUNES_font_75 = static
+def draw_leaderboard(user, rank, house, level, progress, static):
+    background, profile_border, full_bar, bar_mask, marker, fonts = static
     background = copy.deepcopy(background)
 
 
     ## profile picture ##
-    url = get_avatar(user=member, none=True)
-    
     xy = (150, 150)
 
-    if url is None:
+    if user["avatar"] is None:
         # black avatar if missing
         avatar = Image.new(mode="L", size=xy, color=0)
     else:
         # download avatar
-        avatar = Image.open(io.BytesIO(get_image(url=url)))
+        avatar = Image.open(io.BytesIO(get_image(url=user["avatar"])))
         
         # scaling
         avatar = scale_image(base_width=xy[0], image=avatar)
@@ -284,7 +410,8 @@ def draw_leaderboard(member, rank, house, level, progress, static):
     x, y = avatar.size
     draw.polygon(check_shape(shape=[(0,y/2), (0,y), (x,y), (x,y/2)]), fill=255)
 
-    background.paste(im=avatar, box=get_position(center=avatar_center, image_center=avatar.size, offset=(5,8)), mask=avatar_mask)
+    offset = user.pop("offset", True)
+    background.paste(im=avatar, box=get_position(center=avatar_center, image_center=avatar.size, offset=(5,8) if offset else (0,0)), mask=avatar_mask)
 
     # add profile border
     background.alpha_composite(im=profile_border, dest=get_position(center=avatar_center, image_center=profile_border.size))
@@ -294,29 +421,24 @@ def draw_leaderboard(member, rank, house, level, progress, static):
 
     ## box info ##
     # add rank
-    draw.text(xy=(380, 118), text="#" + f"{rank}".rjust(3, "0"), fill=(235,235,235), font=MAGIC_font_88, align="left", anchor='lm')
-
-    # TODO!:
-    name = member.nick or member.global_name
-    problem_name = {1108425644032938044:"Voodoochild", 776678540166823936:"Leil", 1132281522041401454:"BADGER", 871307021138399232:"Tam Lin", 1140274502882820116: "S i r i u s"}
-    name = problem_name.pop(member.id, name.replace(" ", "\n "))
+    draw.text(xy=(380, 118), text="#" + f"{rank}".rjust(3, "0"), fill=(235,235,235), font=fonts["MAGIC_88"], align="left", anchor='lm')
 
     # add nickname
-    if len(name) <= 9 and ("\n" in name):
-        name_font = RUNES_font_88
+    if len(user["username"]) <= 9 and ("\n" in user["username"]):
+        name_font = fonts["RUNES_88"]
     else:
-        name_font = RUNES_font_75
+        name_font = fonts["RUNES_72"]
 
-    draw.multiline_text(xy=(570, 160 if "\n" in name else 128), text=name, fill=(235,235,235), font=name_font, align="left", anchor='lm', spacing=-35)
+    draw.multiline_text(xy=(570, 160 if "\n" in user["username"] else 128), text=user["username"], fill=(235,235,235), font=name_font, align="left", anchor='lm', spacing=-35)
 
     # add house logo
     if house:
-        house_logo = Image.open(absolute_path + f"image_module/houses/{house}.png")
+        house_logo = Image.open(vars.absolute_path + f"image_module/houses/{house}.png")
         background.alpha_composite(im=house_logo, dest=(388, 194))
 
     # progress details (pet name and level)    
-    draw.text(xy=(911, 170), text=f"Pet: {animal_rank[level]}", fill=(235,235,235), font=MAGIC_font_45, align="left", anchor='lm')
-    draw.text(xy=(911, 227), text=f"Level: {level}", fill=(235,235,235), font=MAGIC_font_45, align="left", anchor='lm')
+    draw.text(xy=(911, 170), text=f"Pet: {animal_rank[level]}", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
+    draw.text(xy=(911, 227), text=f"Level: {level}", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
 
 
     ## progress bar ##
@@ -343,7 +465,7 @@ def draw_leaderboard(member, rank, house, level, progress, static):
     background.alpha_composite(im=marker, dest=get_position(center=(95, 322), image_center=marker.size, offset=(int(round(percent * 1480)-85), 0) if percent >= 0.059 else (0, 0)))
 
     # add percentage
-    draw.text(xy=(x-175 if percent < 0.5 else 175, 322), text=f"{round(progress*100, 2)}%", fill=(235,235,235), font=MAGIC_font_42, align="center", anchor='mm')
+    draw.text(xy=(x-175 if percent < 0.5 else 175, 322), text=f"{round(progress*100, 2)}%", fill=(235,235,235), font=fonts["MAGIC_42"], align="center", anchor='mm')
     
     
     ## save and return file ##
@@ -351,38 +473,20 @@ def draw_leaderboard(member, rank, house, level, progress, static):
     background.save(bytes, format="PNG")
     bytes.seek(0)
     
-    return File(bytes, filename=f"leaderboard_{member.id}.png")
+    return File(bytes, filename=f"leaderboard_{user['user_id']}.png")
 
-
-def get_level_and_progress(exp_total):
-    exp = 0
-    level = 0
-
-    # Calculate current level
-    while True:
-        exp_for_next_level = 5 * (level ** 2) + (50 * level) + 100
-        if exp + exp_for_next_level > exp_total:
-            break
-        exp += exp_for_next_level
-        level += 1
-
-    # Progress within the current level
-    exp_into_next_level = exp_total - exp
-    percent = exp_into_next_level / exp_for_next_level
-
-    return level, percent
-
+############################################################################################################
 
 def create_leaderboard(server, data, custom_housecup):
     ## get static files for leaderboard ##
     # the basic template
-    background = Image.open(absolute_path + "image_module/leaderboard_template.png")
+    background = Image.open(vars.absolute_path + "image_module/leaderboard_template.png")
 
     # the profile border
-    profile_border = Image.open(absolute_path + "image_module/leaderboard_frogcard_template.png")
+    profile_border = Image.open(vars.absolute_path + "image_module/leaderboard_frogcard_template.png")
     
     # the full progress bar
-    full_bar = Image.open(absolute_path + f"image_module/leaderboard_bar.png")
+    full_bar = Image.open(vars.absolute_path + f"image_module/leaderboard_bar.png")
     
     # the mask for the begining of the bar
     bar_mask = Image.new(mode="L", size=full_bar.size, color=255)
@@ -391,15 +495,14 @@ def create_leaderboard(server, data, custom_housecup):
     draw.polygon(check_shape(shape=[(0, 0), (0, y), (91, y), (91, 0)]), fill=0)
 
     # the progress bar marker
-    marker = Image.open(absolute_path + f"image_module/leaderboard_bar_frog.png")
+    marker = Image.open(vars.absolute_path + f"image_module/leaderboard_bar_frog.png")
 
     # the fonts
-    MAGIC_font_88 = ImageFont.truetype(font=(absolute_path + "image_module/MAGIC.ttf"), size=88)
-    MAGIC_font_45 = ImageFont.truetype(font=(absolute_path + "image_module/MAGIC.ttf"), size=45)
-    MAGIC_font_42 = ImageFont.truetype(font=(absolute_path + "image_module/MAGIC.ttf"), size=42)
-
-    RUNES_font_88 = ImageFont.truetype(font=(absolute_path + "image_module/RUNES.ttf"), size=88)
-    RUNES_font_75 = ImageFont.truetype(font=(absolute_path + "image_module/RUNES.ttf"), size=75)
+    fonts = {"MAGIC_88": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=88),
+             "MAGIC_45": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=45),
+             "MAGIC_42": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=42),
+             "RUNES_88": ImageFont.truetype(font=(vars.absolute_path + "image_module/RUNES.ttf"), size=88),
+             "RUNES_72": ImageFont.truetype(font=(vars.absolute_path + "image_module/RUNES.ttf"), size=72),}
 
 
     ## create loop for each user ##
@@ -407,7 +510,7 @@ def create_leaderboard(server, data, custom_housecup):
     for user in data:
 
         # get member, skip if can't
-        member = server.get_member(int(user["id"]))
+        member = server.get_member(int(user["user_id"]))
         if member is None:
             continue
         else:
@@ -434,7 +537,7 @@ def create_leaderboard(server, data, custom_housecup):
             # get house if no custom housecup
             if house is None:
                 for role in roles:
-                    if role in list(houses.keys())[:-1]:
+                    if role in list(vars.houses.keys())[:-1]:
                         house = role
                         break
 
@@ -444,32 +547,19 @@ def create_leaderboard(server, data, custom_housecup):
         else:
             color = 5198940
 
-        file = draw_leaderboard(member, rank, house, level, progress, static=(background, profile_border, full_bar, bar_mask, marker, 
-                                                                              MAGIC_font_88, MAGIC_font_45, MAGIC_font_42, RUNES_font_88, RUNES_font_75))
-        leaderboard += [(user["id"], color, file)]
+        if (username := user.pop("username", None)) is None:
+            user["username"] = (member.nick or member.global_name).replace(" ", "\n ")
+        else:
+            user["username"] = username
+        
+        user["avatar"] = get_avatar(user=member, none=True)
 
-        #if test_bot["test_command"]:
-            #    break
+        file = draw_leaderboard(user, rank, house, level, progress, static=(background, profile_border, full_bar, bar_mask, marker, fonts))
+        leaderboard += [(user["user_id"], color, file)]
 
     return leaderboard, custom_housecup
 
-
-def get_member_id_by_nick(server, nick):
-    try:
-        return [member.id for member in server.members if member.nick == nick][0]
-    except IndexError:
-        return None
-
-def remove_extra_characters(string, is_id=False):
-    if is_id:
-        return re.sub(r'''\D''', "", string)
-    else:
-        return replace_multiple(string.lstrip(" ").rstrip(" "), [("\r", ""), ("\n", "")], self_idx=False)
-    
-def parse_multiple_possibilities(value):
-    if len(list := [remove_extra_characters(value) for value in value.split("|")]) == 1:
-        list += [None]
-    return list
+############################################################################################################
 
 def parse_portkey_data(server, message, member=None):
     if message.author.id == 952824326766333972:
@@ -479,7 +569,7 @@ def parse_portkey_data(server, message, member=None):
             if idx == "1":
                 if member is None:
                     if (user_id := get_member_id_by_nick(server, nick=field.value)) is None:
-                        raise ValueError(f"no User with nickname {field.value} on the server")
+                        raise Exception(f"no User with Nickname {field.value} on this server")
                 else:
                     user_id = member.id
             
@@ -522,12 +612,10 @@ def parse_portkey_data(server, message, member=None):
         
         return (user_id, game_id, from_wb, old_username, multiple_choice, additional_info, birthday, year, extra)
     else:
-        raise ValueError("what you are trying to accept is not a Portkey")
+        raise Exception("what you are trying to accept is not a Portkey")
 
 
-def print_portkey(server, portkey):
-    member = server.get_member(int(portkey["user_id"]))
-    
+def print_portkey(member, portkey):
     try:
         roles = [role.name for role in member.roles]
 
@@ -536,7 +624,7 @@ def print_portkey(server, portkey):
         else:
             color = 5198940
     except AttributeError:
-        color = system_embed_color
+        color = vars.system_embed_color
 
     
     doc_url = "https://docs.google.com/document/d/1CJMk8wJZkYnXG729xHGPvsyaj5BtrXMZeqlIOV_4qtA/edit?usp=sharing"
@@ -550,7 +638,7 @@ def print_portkey(server, portkey):
     line_1 = f"{member.nick or member.global_name} | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
     embed.add_field(name="1. Hello, I'm... | And my ID is...", value=line_1, inline=True)
 
-    line_2 = houses[[house for house in houses if house in roles][0]]["emoji"]
+    line_2 = vars.houses[[house for house in vars.houses if house in roles][0]]["emoji"]
     embed.add_field(name="2. My house is...", value=line_2, inline=True)
     
     line_3 = (("Yes | " if portkey["from_wb"] else "No, ") + portkey["old_username"]) if portkey["old_username"] else ("Yes" if portkey["from_wb"] else "No")
@@ -576,11 +664,12 @@ def print_portkey(server, portkey):
 
     return embed
 
+############################################################################################################
 
 def print_house_members(members, page, filter):
     
     # filter by house and group
-    house = list(houses.keys())[page]
+    house = list(vars.houses.keys())[page]
     group = ["gop", "guest", "cross guild"][filter]
 
     users = []
@@ -596,4 +685,243 @@ def print_house_members(members, page, filter):
     for idx, user in enumerate(users):
         users[idx] = f"{idx+1}. {user.nick or user.global_name} - <@{user.id}>"
 
-    return Embed(color=system_embed_color, title=houses[house]["emoji"], description=f"**{group.capitalize() if filter != 0 else group.upper()}:**\n"+"\n".join(users))
+    return Embed(color=vars.system_embed_color, title=vars.houses[house]["emoji"], description=f"**{group.capitalize() if filter != 0 else group.upper()}:**\n"+"\n".join(users))
+
+############################################################################################################
+
+async def set_event_and_notification(server, event_info, date, event_duration, start_time, only_hour=True, time_delta=0):
+    global delete_after
+    
+    trigger_day = date
+    if time_delta:
+        trigger_day += timedelta(days=time_delta)
+    
+    # for testing
+    if vars.test_bot["test_tasks"]:
+        beginning = datetime.now() + timedelta(minutes=vars.wait_for*2)
+        ending    = beginning + timedelta(minutes=vars.wait_for)
+        duration  = f"~{vars.wait_for} minutes"
+    else:
+        delete_after["hours"]   = event_duration[0] + (start_time[0] - trigger_day.hour)   + (time_delta * 24)
+        delete_after["minutes"] = event_duration[1] + (start_time[1] - trigger_day.minute)
+        delete_after["seconds"] = event_duration[2] + (start_time[2] - trigger_day.second)
+        
+        beginning = trigger_day.replace(hour  =(start_time[0] % 24),
+                                        minute=(start_time[1] % 60),
+                                        second=(start_time[2] % 60),)
+        
+        ending = beginning + timedelta(hours=event_duration[0], minutes=event_duration[1], seconds=event_duration[2])
+        
+        duration = f"~{event_duration[0]} hour{'s' if event_duration[0] > 1 else ''}"
+    
+    print("h:", delete_after["hours"], " m:", delete_after["minutes"], " s:", delete_after["seconds"])
+
+    # get alternative title and insert timer
+    if not event_info["title"]:
+        event_name = re.search('<(.*)>', event_info["subtitle"]).group(1)
+        event_info["subtitle"] = replace_multiple(event_info["subtitle"], [("<", ""), (">", "")], self_idx=False)
+
+    elif ("<" in event_info["title"]) and (">" in event_info["title"]):
+        event_name = re.search('<(.*)>', event_info["subtitle"]).group(1) + f": {re.search('<(.*)>', event_info['title']).group(1)}"
+        event_info["title"] = replace_multiple(event_info["title"], [("<", ""), (">", "")], self_idx=False)
+        event_info["subtitle"] = replace_multiple(event_info["subtitle"], [("<", ""), (">", "")], self_idx=False)
+    else:
+        event_name = event_info["title"]
+   
+    event_info["description"] = event_info["description"].replace("000", convert_to_unix_time(date=beginning.astimezone(), mode="R"))
+    
+    try:
+        event_info["location"]
+    except KeyError:
+        event_info["location"] = "HP: Magic Awakened ឵឵(Sphinx)"
+
+    
+    # get image
+    channel = server.get_channel(channel_ids["assets"])
+    message = [message async for message in channel.history(limit=None) if message.content == event_info["image_id"]][0]
+
+
+    if not vars.test_bot["test_tasks"]:
+
+        # create event
+        try:
+            await server.create_scheduled_event(name=event_name,
+                                                start_time=beginning.astimezone() if beginning > date else (date + timedelta(minutes=2)).astimezone(),
+                                                end_time=ending.astimezone(),
+                                                description=event_info["description"],
+                                                location=event_info["location"],
+                                                privacy_level=PrivacyLevel.guild_only,
+                                                entity_type=EntityType.external,
+                                                image=get_image(url=message.attachments[0]))
+        except ValueError:
+            print("Could not create event... Image not found!")
+        except CommandInvokeError:
+            print("Could not create event... Bad time!")
+    
+    
+    # create notification message
+    embed = Embed(color=vars.system_embed_color, title=event_info["title"], description=event_info["description"])
+    embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=event_info["subtitle"])
+    embed.add_field(name="Location", value=event_info["location"], inline=False)
+    embed.add_field(name="Scheduled for", value=f"{convert_to_unix_time(date=beginning.astimezone(), mode=('t' if only_hour else 'f'))}", inline=True)
+    embed.add_field(name="Duration", value=duration, inline=True)
+
+    if event_info["footer"]:
+        embed.set_footer(text=event_info["footer"])
+
+    channel = server.get_channel(channel_ids["announcements"])
+    message = await send_webhook(target_channel=channel, user_name=event_info["account"], content="Mention: <@&1278844289694171260>", embed=embed)
+
+    if not vars.test_bot["test_tasks"]:
+        await message.delete(delay=(delete_after["hours"]*3600)+(delete_after["minutes"]*60)+delete_after["seconds"])
+
+
+async def print_notification(server, date, event_name, variables=[], is_task=True, same_day=False):
+    events = vars.notification_dict()
+    task = events[event_name]
+
+    try:
+        if vars.test_bot["test_tasks"] and is_task:
+            events_short = vars.notification_dict(is_short=True)
+            print(f'''"{events_short[event_name]}" task running... {datetime.now()}!''')
+        else:
+            date = date.astimezone(tz=vars.time_trigger[task].tzinfo)
+    except KeyError:
+        pass
+
+    file, view = None, None
+
+    if event_name == "Welcome":
+        new_user, file, view = variables
+        
+        channel = server.get_channel(channel_ids["welcome"])
+
+        event_info = {"mention":    f"Mention: <@{new_user.id}>",
+                      "title":      f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",
+                      "description": "Go to <id:guide> and follow the instructions :)",
+                      "footer":   f'''"You are a Wizard, {new_user.name}."''',
+                      "account":     "Prof. Hagrid",}
+        
+        embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=vars.system_embed_color)
+
+
+    elif event_name == "Birthday":
+        birthdays = variables[0]
+        
+        channel = server.get_channel(channel_ids["the-3-broomsticks"])
+
+        event_info = {"mention":       "Mention: @everyone",
+                      "subtitle":      "Birthday Announcement!",
+                      "description":  f"**GOP  •  {date.strftime('%d/%m/%Y')}**\nPlease, wish <@{birthdays[0]}> a **Happy Birthday** <:hugs:1256225688403447888> :heart:",
+                      "extra_fields":[f"Wait! There is more...\nPlease, wish <@{birthday}> a **Happy Birthday** as well <:hugs:1256225688403447888> :heart:" for birthday in birthdays[1:]],
+                      "thumbnail":     "https://i.pinimg.com/564x/d8/48/59/d848592fca62cc100b148b5b77006248.jpg",
+                      "footer":     '''"I can see something in the stars...\nToday is a very special day!"''',
+                      "account":       "Prof. Trelawney",}
+
+
+    elif task == "weekly_cards":
+        link = "https://discord.com/channels/1221838993071538327/1278363571083804777/000"
+
+        event_info = {"subtitle":       "Reminder: Weekly <Free Card>!",
+                      "description": f'''Map: {link}\nGo to the **001** and click on the 002 003!\n\nPick the option: **"004"**!\nYou will get 005 of the card.''',
+                      "footer":      '''"Swish and flick everyone!\nJust like we have been practicing..."''',
+                      "account":        "Prof. Flitwick",}
+
+        if event_name == "Card - Matagot":
+            event_info["image_id"] = "card_1_image"
+            event_info["title"] = "<Matagot! (rare)>"
+            
+            event_info["description"] = event_info["description"].replace("/000", "/1278841345133252662")
+            event_info["description"] = replace_multiple(event_info["description"], ["Staircase", "\nMatagot", "next to the Transfiguration Classroom", "Hand it Over to Hagrid", "1 copy"])
+        
+        elif event_name == "Card - Book of Monsters":
+            event_info["image_id"] = "card_2_image"
+            event_info["title"] = "<Book of Monsters! (rare)>"
+
+            event_info["description"] = event_info["description"].replace("/000", "/1278841654739992588")
+            event_info["description"] = replace_multiple(event_info["description"], ["History of Magic Classroom", "Book", "in the corner", "Stroke the Spine and Then Open It", "1 copy"])
+            
+        elif event_name == "Card - Cornish Pixies":
+            event_info["image_id"] = "card_3_image"
+            event_info["title"] = "<Cornish Pixies! (common)>"
+            
+            event_info["description"] = event_info["description"].replace("/000", "/1278842175886590078")
+            event_info["description"] = replace_multiple(event_info["description"], ["Library", "Pixies", "first bookcase row left", "Use Glacius.", "3 copies"])
+
+        return await set_event_and_notification(server, event_info, date, event_duration=(4,0,0), start_time=(17,0,0))
+
+
+    elif event_name == "Housecup":
+        discipline = variables[0]
+        
+        event_info = {"image_id":    "housecup_image",
+                      "title":      f"<{vars.housecup_disciplines_names[discipline]}!>",
+                      "subtitle":    "Reminder: <House Cup>!",
+                      "description": "Make sure you be there and may the best house win!",
+                      "footer":   '''"Did you put your name for the House Cup yet?!" he asked calmly.''',
+                      "account":     "Prof. Dumbledore",}
+        
+        return await set_event_and_notification(server, event_info, date, time_delta=(0 if same_day else 1), event_duration=(2,0,0), start_time=(19,0,0), only_hour=False)
+
+
+    elif event_name == "Club Events":
+        event_info = {"image_id":    "event_image",
+                      "title":       "GOP Club Events!",
+                      "subtitle":   f"Reminder: {vars.weekdays[date.weekday()]}!",
+                      "description": "**We start 000!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance!",
+                      "footer":   '''"Place your right hand on my waist and...\nOne, two, three... One, two, three..."''',
+                      "account":     "Prof. McGonagall",}
+        
+        return await set_event_and_notification(server, event_info, date, event_duration=(1,0,0), start_time=(19,30,0))
+
+
+    elif event_name == "Club Points":
+        channel = server.get_channel(channel_ids["announcements"])
+
+        event_info = {"mention":     "Mention: <@&1314983531050569828>",
+                      "description": "Reminder to all who haven't earned\ntheir 100 Club points yet!\n\n"\
+                                     "Please do so by the **end of the week**\nor inform a <@&1221884134121668648> / <@&1221910705318662154>\nif you are unable to do so!",
+                      "footer":   '''"And be warned... I shall know if you have not practiced."''',
+                      "account":     "Prof. Snape",}
+
+
+    elif event_name == "Maintenance":
+        event_info = {"image_id":    "maintenance_image",
+                      "title":       "",
+                      "subtitle":    "Reminder: <Maintenance!>",
+                      "description": "**It starts 000!**\nDuring this period the game will be unavailable!",
+                      "footer":   '''"Go on, scram! Or I will hanging you by your thumbs in the dungeons!"''',
+                      "account":     "Mr. Filch",}
+        
+        return await set_event_and_notification(server, event_info, date, time_delta=(0 if same_day else 1), event_duration=(3,0,0), start_time=(24,0,0))
+
+
+    elif event_name == "Rankings":
+        channel = server.get_channel(channel_ids["staffroom"])
+
+        event_info = {"mention":     "Mention: <@&1221884134121668648> <@&1221910705318662154>",
+                      "description": "Dear Staff,\nremember to take a picture of this week's top 3 students!\n\n(Please post the screenshots below!)",
+                      "footer":   '''"But be quick! It is not wise to be wandering around this late hour."''',
+                      "account":     "Prof. Dumbledore",}
+    
+    
+    event_info = catch_error(event_info, keys=["extra_fields", "title", "subtitle", "thumbnail"])
+
+    embed = Embed(color=vars.system_embed_color, title=event_info["title"], description=event_info["description"])
+
+    if event_info["subtitle"]:
+        embed.set_author(icon_url="https://storage.googleapis.com/chronicle-assets/images/icons/bell-alert-white.png", name=event_info["subtitle"])
+
+    if event_info["extra_fields"]:
+        for field in event_info["extra_fields"]:
+            embed.add_field(name="", value=field, inline=False)
+
+    if event_info["thumbnail"]:
+        embed.set_thumbnail(url=event_info["thumbnail"])
+    
+    embed.set_footer(text=event_info["footer"])
+
+    if file:
+        embed.set_image(url=f"attachment://{file.filename}")
+    
+    return await send_webhook(target_channel=channel, user_name=event_info["account"], content=event_info["mention"], embed=embed, file=file, view=view)
