@@ -1,5 +1,6 @@
 import src.variables as vars
 
+from math import sqrt
 from datetime import datetime, timedelta
 from functools import reduce
 from PIL import Image, ImageFont, ImageDraw, ImageFilter
@@ -30,6 +31,7 @@ R = TypeVar("R")   # returns
 # SETTINGS
 # for testing
 # vars.test_bot["test_command"] = True # overwrite if needed
+# vars.test_bot["test_events"] = True # overwrite if needed
 # vars.test_bot["test_tasks"] = True # overwrite if needed
 
 
@@ -47,27 +49,27 @@ headers = {"authorization": f"Bot {vars.bot_token}",
 
 # Complete list at:
 # https://harrypotter.fandom.com/wiki/List_of_creatures
-animal_rank = {0:  "Flobberworm", #100
+animal_rank = {0:  "Flobberworm",   #100 xp to finish
                1:  "Cornish Pixie", #255
-               2:  "Bowtruckle", #475
-               3:  "Puffskein", #770
-               4:  "Diricawl", #1150
-               5:  "Kneazle", #1625
-               6:  "Mooncalf", #2205
-               7:  "Niffler", #2900
-               8:  "Demiguise", #3720
-               9:  "Yeti", #4675
-               10: "Thunderbird", #5775
-               11: "Sphinx", #7030
-               12: "Erumpent", #8450
-               13: "Graphorn", #10045
-               14: "Hippogriff", #11825
-               15: "Kelpie", #13800
-               16: "Unicorn", #15980
-               17: "Zouwu", #18375
-               18: "Basilisk", #20995
-               19: "Phoenix", #23850
-               20: "Dragon" #26950
+               2:  "Bowtruckle",    #475
+               3:  "Puffskein",     #770
+               4:  "Diricawl",      #1150
+               5:  "Kneazle",       #1625
+               6:  "Mooncalf",      #2205
+               7:  "Niffler",       #2900
+               8:  "Demiguise",     #3720
+               9:  "Yeti",          #4675
+               10: "Thunderbird",   #5775
+               11: "Sphinx",        #7030
+               12: "Erumpent",      #8450
+               13: "Graphorn",      #10045
+               14: "Hippogriff",    #11825
+               15: "Kelpie",        #13800
+               16: "Unicorn",       #15980
+               17: "Zouwu",         #18375
+               18: "Basilisk",      #20995
+               19: "Phoenix",       #23850
+               20: "Dragon"         #26950
               }
 
 max_level = len(animal_rank) - 1
@@ -115,10 +117,15 @@ def standard_response(silent: bool=False):
             try:
                 return await func(*args, **kwargs)
             except Exception as error:
-                try:
-                    await interaction.followup.send(f"Something went very wrong here... {error}!", ephemeral=True)
-                except Exception as followup_error:
-                    print(f"Failed to send error follow-up: {followup_error}")
+                text = f"Something went very wrong here... {error}!"
+                
+                if not silent:
+                    try:
+                        await interaction.followup.send(text, ephemeral=True)
+                    except Exception as followup_error:
+                        print(f"Failed to send error follow-up: {followup_error}")
+                else:
+                    await interaction.response.send_message(text, ephemeral=True)
         
         return response
     return run
@@ -220,7 +227,7 @@ def remove_extra_characters(string:str, is_id:bool=False):
  
 def parse_multiple_possibilities(value:str):
     if len(list := [remove_extra_characters(value) for value in value.split("|")]) == 1:
-        list += [None]
+        list.append(None)
     return list
 
 ############################################################################################################
@@ -282,23 +289,37 @@ def get_avatar(user, none=False):
         return user.default_avatar._url
 
 
-def get_level_and_progress(exp_total):
-    exp = 0
+def get_level_and_progress(xp_total):
+    xp = 0
     level = 0
 
-    # Calculate current level
+    # calculate current level
     while True:
-        exp_for_next_level = 5 * (level ** 2) + (50 * level) + 100
-        if exp + exp_for_next_level > exp_total:
+        xp_for_next_level = 5 * (level ** 2) + (50 * level) + 100
+        if xp + xp_for_next_level > xp_total:
             break
-        exp += exp_for_next_level
+        xp += xp_for_next_level
         level += 1
 
-    # Progress within the current level
-    exp_into_next_level = exp_total - exp
-    percent = exp_into_next_level / exp_for_next_level
+    # progress within the current level
+    xp_into_next_level = xp_total - xp
+    progress = xp_into_next_level / xp_for_next_level
 
-    return level, percent
+    return level, round(progress, 2)
+
+
+def get_level_change(previous_level, current_level):
+    
+    # no change
+    if previous_level == current_level:
+        return []
+
+    # leveled up (progression)
+    if current_level > previous_level:
+        return list(range(previous_level+1, current_level+1))
+    
+    # level down (regressionm, final)
+    return [current_level]
 
 
 def get_member_id_by_nick(server, nick):
@@ -477,6 +498,60 @@ def draw_leaderboard(user, rank, house, level, progress, static):
 
 ############################################################################################################
 
+def parse_xp_amount(func):  
+    @functools.wraps(func)
+    async def parse(self, *args, **kwargs):
+        server = kwargs.pop("server")
+        member = kwargs.pop("member")
+        amount = kwargs.pop("amount")
+        after_action= kwargs.pop("after_action", "add")
+
+        if amount <= 0:
+            raise Exception("parse error: 'amount' cannot be zero or negative")
+
+        record = self.get_record(user_id=member.id)
+        is_new = not bool(record)
+
+        # modify existing record
+        if record:
+            previous_xp    = record["xp"]
+            previous_level = record["level"]
+            
+        # create a new record
+        else:
+            previous_xp    = 0
+            previous_level = 0
+            
+        # compute new xp based on the action
+        if after_action == "add":
+            current_xp = previous_xp + amount
+        elif after_action == "subtract":
+            current_xp = previous_xp - amount
+            if current_xp <= 0:
+                raise Exception("parse error: 'xp' cannot be zero or negative after subtraction")
+        else:  # action == "set"
+            current_xp = amount
+        
+        kwargs["is_new"] = is_new
+        kwargs["user_id"] = member.id
+
+        current_level, progress = get_level_and_progress(current_xp)
+        kwargs["experience"] = {"xp": current_xp, "level": current_level, "progress": progress}
+
+        if not is_new:
+            kwargs["experience"]["archived"] = False
+
+        current_xp = func(self, *args, **kwargs)
+
+        # send a level up message
+        level_ups = get_level_change(previous_level, current_level)
+        if level_ups:
+            await print_notification(server, event_name="Level Up", variables=[member, level_ups], is_task=False)
+
+        return current_xp
+    return parse
+
+
 def create_leaderboard(server, data, custom_housecup):
     ## get static files for leaderboard ##
     # the basic template
@@ -510,14 +585,15 @@ def create_leaderboard(server, data, custom_housecup):
     for user in data:
 
         # get member, skip if can't
-        member = server.get_member(int(user["user_id"]))
+        member = server.get_member(user["user_id"])
         if member is None:
             continue
         else:
             rank += 1
 
-        # get member level and progress from exp
-        level, progress = get_level_and_progress(user["xp"])
+        # get member level and progress from Experience
+        level = user["level"]
+        progress = user["progress"]
 
         # limit the levels
         if level > max_level:
@@ -530,7 +606,7 @@ def create_leaderboard(server, data, custom_housecup):
         # add points for the custom housecup
         for idx, house in enumerate(custom_housecup):
             if house.name in roles:
-                custom_housecup[idx].points += [user["xp"]]
+                custom_housecup[idx].points.append(user["xp"])
                 house = house.name
                 break
         else:
@@ -555,64 +631,74 @@ def create_leaderboard(server, data, custom_housecup):
         user["avatar"] = get_avatar(user=member, none=True)
 
         file = draw_leaderboard(user, rank, house, level, progress, static=(background, profile_border, full_bar, bar_mask, marker, fonts))
-        leaderboard += [(user["user_id"], color, file)]
+        leaderboard.append((user["user_id"], color, file))
 
     return leaderboard, custom_housecup
 
 ############################################################################################################
 
-def parse_portkey_data(server, message, member=None):
-    if message.author.id == 952824326766333972:
+def parse_portkey_data(func):  
+    @functools.wraps(func)
+    def parse(self, *args, **kwargs):
+        server  = kwargs.pop("server")
+        message = kwargs.pop("message")
+        user_id = kwargs.pop("user_id", None)
+
+        if message.author.id != 952824326766333972:
+            raise Exception("what you are trying to accept is not a Portkey")
+        
+        # predeclare all expected variables to prevent UnboundLocalError
+        game_id = from_wb = old_username = multiple_choice = additional_info = birthday = birth_year = extra = None
+
+
         for field in message.embeds[0].fields:
             idx = field.name.split(".")[0]
 
-            if idx == "1":
-                if member is None:
-                    if (user_id := get_member_id_by_nick(server, nick=field.value)) is None:
-                        raise Exception(f"no User with Nickname {field.value} on this server")
-                else:
-                    user_id = member.id
+            match idx:
+                case "1":
+                    if user_id is None:
+                        user_id = get_member_id_by_nick(server, nick=field.value)
+                        if user_id is None:
+                            raise Exception(f"no User with Nickname {field.value} on this server")
             
-            elif idx == "2":
-                if not (game_id := remove_extra_characters(field.value, is_id=True)):
-                    game_id = 0
-                else:
-                    game_id = int(game_id)
-            
-            elif idx == "3":
-                continue
-            
-            elif idx == "4":
-                (from_wb, old_username) = parse_multiple_possibilities(field.value)
-                from_wb = True if (from_wb == "Yes") else False
-            
-            elif idx == "5":
-                multiple_choice = parse_multiple_possibilities(field.value)
+                case "2":
+                    game_id = remove_extra_characters(field.value, is_id=True)
+                    game_id = int(game_id) if game_id else 0
                 
-                additional_info = multiple_choice.pop(-1)
+                case "3":
+                    continue
                 
-                if additional_info in form_answers:
-                    multiple_choice += [additional_info]
-                    additional_info = None
+                case "4":
+                    from_wb, old_username = parse_multiple_possibilities(field.value)
+                    from_wb = (from_wb == "Yes")
+                
+                case "5":
+                    multiple_choice = parse_multiple_possibilities(field.value)
+                    additional_info = multiple_choice.pop(-1)
+                    
+                    if additional_info in form_answers:
+                        multiple_choice.append(additional_info)
+                        additional_info = None
 
-                multiple_choice = "".join([("1" if (answer in multiple_choice) else "0") for answer in form_answers[::-1]])
-            
-            elif idx == "6":
-                birthday_date = field.value.split(".")
+                    multiple_choice = "".join("1" if answer in multiple_choice else "0" for answer in reversed(form_answers))
                 
-                if birthday_date != ["-"]:
-                    birthday = datetime(day=int(birthday_date[0]), month=int(birthday_date[1]), year=2000)
-                    if (year := int(birthday_date[2])-1900) == datetime.now().year-1900:
-                        year = None
-                else:
-                    birthday, year = None, None
-            
-            elif idx == "7":
-                extra = field.value if (field.value != "-") else None
+                case "6":
+                    birth_parts = field.value.split(".")
+                    
+                    if birth_parts != ["-"]:
+                        birthday = datetime(day=int(birth_parts[0]), month=int(birth_parts[1]), year=2000)
+                        if (birth_year := int(birth_parts[2])-1900) == datetime.now().year-1900:
+                            birth_year = None
+                    else:
+                        birthday, birth_year = None, None
+                
+                case "7":
+                    extra = field.value if (field.value != "-") else None       
         
-        return (user_id, game_id, from_wb, old_username, multiple_choice, additional_info, birthday, year, extra)
-    else:
-        raise Exception("what you are trying to accept is not a Portkey")
+        kwargs["portkey"] = (user_id, game_id, from_wb, old_username, multiple_choice, additional_info, birthday, birth_year, extra)
+        
+        return func(self, *args, **kwargs)
+    return parse
 
 
 def print_portkey(member, portkey):
@@ -630,7 +716,7 @@ def print_portkey(member, portkey):
     doc_url = "https://docs.google.com/document/d/1CJMk8wJZkYnXG729xHGPvsyaj5BtrXMZeqlIOV_4qtA/edit?usp=sharing"
     
     form_answers_extended = [f"{answer}\n\n" for answer in form_answers]
-    form_answers_extended += [f"{portkey['additional_info']}\n\n"]
+    form_answers_extended.append(f"{portkey['additional_info']}\n\n")
     
 
     embed = Embed(color=color, description=f"**User:** <@{portkey['user_id']}>")
@@ -678,7 +764,7 @@ def print_house_members(members, page, filter):
 
         # equivalent to .issubset()
         if {house, group} <= roles:
-            users += [member]
+            users.append(member)
 
     users = sorted(users, key=lambda x: (x.nick or x.global_name))
     
@@ -776,18 +862,16 @@ async def set_event_and_notification(server, event_info, date, event_duration, s
         await message.delete(delay=(delete_after["hours"]*3600)+(delete_after["minutes"]*60)+delete_after["seconds"])
 
 
-async def print_notification(server, date, event_name, variables=[], is_task=True, same_day=False):
-    events = vars.notification_dict()
-    task = events[event_name]
+async def print_notification(server, event_name, date=None, variables=[], is_task=True, same_day=False):
+    events    = vars.notification_dict()
+    task_name = events[event_name]
 
-    try:
-        if vars.test_bot["test_tasks"] and is_task:
-            events_short = vars.notification_dict(is_short=True)
-            print(f'''"{events_short[event_name]}" task running... {datetime.now()}!''')
-        else:
-            date = date.astimezone(tz=vars.time_trigger[task].tzinfo)
-    except KeyError:
-        pass
+    if vars.test_bot["test_tasks"] and is_task:
+        events_short = vars.notification_dict(is_short=True)
+        print(f'''"{events_short[event_name]}" task running... {datetime.now()}!''')
+    elif not is_task:
+        if date and task_name:
+            date = date.astimezone(tz=vars.time_trigger[task_name].tzinfo)
 
     file, view = None, None
 
@@ -804,6 +888,23 @@ async def print_notification(server, date, event_name, variables=[], is_task=Tru
         
         embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=vars.system_embed_color)
 
+    elif event_name == "Level Up":
+        user, level_ups = variables
+
+        channel = server.get_channel(channel_ids["the-3-broomsticks"])
+
+        event_info = {"mention":    f"Mention: <@{user.id}>",
+                      "title":      f"Level {level_ups[-1]}!",
+                      "description":f"**{user.nick or user.global_name}** just caught a **{animal_rank[level_ups[0]]}** <:hugs:1256225688403447888>\n",
+                      "extra_fields":[f"Wait! There is more... they also caught a {animal_rank[level]}\n" for level in level_ups[1:]],
+                      "footer":   '''"One can never have enough pets!"''',
+                      "account":     "Prof. Dumbledore",}
+
+        ending = "How many more fantastic beasts\ncan they catch?"
+        if event_info["extra_fields"]:
+            event_info["extra_fields"][-1] += ending
+        else:
+            event_info["description"] += ending
 
     elif event_name == "Birthday":
         birthdays = variables[0]
@@ -819,7 +920,7 @@ async def print_notification(server, date, event_name, variables=[], is_task=Tru
                       "account":       "Prof. Trelawney",}
 
 
-    elif task == "weekly_cards":
+    elif task_name == "weekly_cards":
         link = "https://discord.com/channels/1221838993071538327/1278363571083804777/000"
 
         event_info = {"subtitle":       "Reminder: Weekly <Free Card>!",

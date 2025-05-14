@@ -57,7 +57,7 @@ async def morning_reminder(bot, today):
 
     # trigger on someone birthday
     if birthdays:
-        await print_notification(SERVER, date=today, event_name="Birthday", variables=[birthdays])
+        await print_notification(SERVER, event_name="Birthday", date=today, variables=[birthdays])
     
     try:
         DB.backup()
@@ -73,18 +73,18 @@ async def weekly_cards_reminder(server, today):
     # trigger on monday, wednesday and friday
     if not vars.test_bot["test_tasks"]:
         if today.weekday() == 0:
-            await print_notification(server, date=today, event_name="Card - Matagot")
+            await print_notification(server, event_name="Card - Matagot", date=today)
         
         elif today.weekday() == 2:
-            await print_notification(server, date=today, event_name="Card - Book of Monsters")
+            await print_notification(server, event_name="Card - Book of Monsters", date=today)
         
         elif today.weekday() == 4:
-            await print_notification(server, date=today, event_name="Card - Cornish Pixies")
+            await print_notification(server, event_name="Card - Cornish Pixies", date=today)
     
     else:
-        await print_notification(server, date=today, event_name="Card - Matagot")
-        await print_notification(server, date=today, event_name="Card - Book of Monsters")
-        await print_notification(server, date=today, event_name="Card - Cornish Pixies")
+        await print_notification(server, event_name="Card - Matagot", date=today)
+        await print_notification(server, event_name="Card - Book of Monsters", date=today)
+        await print_notification(server, event_name="Card - Cornish Pixies", date=today)
 
 
 # housecup reminder:
@@ -99,7 +99,7 @@ async def housecup_reminder(server, today):
     if (vars.test_bot["test_tasks"] or delta.days % 14 == 0):
         discipline = housecup_disciplines.get()[int(delta.days / 14) % 4]
 
-        await print_notification(server, date=today, event_name="Housecup", variables=[discipline])
+        await print_notification(server, event_name="Housecup", variables=[discipline], date=today)
 
         if (not vars.test_bot["test_tasks"] and housecup_disciplines.get()[3] == discipline):
             housecup_reset.change(to=True)
@@ -122,7 +122,7 @@ async def club_events_reminder(server, today):
         trigger_club_events = ExtraVariable(name="trigger_club_events")
         
         if trigger_club_events.get():
-            await print_notification(server, date=today, event_name="Club Events")
+            await print_notification(server, event_name="Club Events", date=today)
         
         # default True
         else:
@@ -136,7 +136,7 @@ async def club_events_reminder(server, today):
             channel = server.get_channel(channel_ids["announcements"])
             [await message.delete() async for message in channel.history(after=(today - timedelta(days=2))) if (message.author.name == "Prof. Snape" and message.content == "Mention: <@&1314983531050569828>")]
         
-        message = await print_notification(server, date=today, event_name="Club Points")
+        message = await print_notification(server, event_name="Club Points", date=today)
         
         # if it is Sunday delete it after reset
         if not vars.test_bot["test_tasks"] and today.weekday() == 6:
@@ -157,7 +157,7 @@ async def game_midnight_reminder(server, today):
     # trigger every 2 weeks from base date
     delta = datetime(year=today.year, month=today.month, day=today.day) - ExtraVariable(name="base_date_maintenance").get()
     if (vars.test_bot["test_tasks"] or delta.days % 14 == 0):
-        await print_notification(server, date=today, event_name="Maintenance")
+        await print_notification(server, event_name="Maintenance", date=today)
 
 
 # midnight reminders
@@ -167,7 +167,7 @@ async def midnight_reminder(server, today):
     
     # trigger on sunday (FOR STAFF ONLY!)
     if (vars.test_bot["test_tasks"] or today.weekday() == 6):        
-        await print_notification(server, date=today, event_name="Rankings")
+        await print_notification(server, event_name="Rankings", date=today)
 
 
 # user create task

@@ -24,7 +24,12 @@ server_id  = 1221838993071538327
 bot_id     = 1305607183139864669
 webhook_id = 1310623344122531851
 
+channel_sections_ids = {"general":  1221863697337684018,
+                        "guides":   1281188392884768810,
+                        "offtopic": 1221914890915287214,}
+
 channel_ids = {"welcome":           1221838993071538330,
+               "points-log":        1372605626445861067,
                "assets":            1317172237572509787,
                "testing":           1287909744409055272,
                "headmasters":       1255614086033575977,
@@ -75,7 +80,8 @@ time_trigger = {"game_reset":    time(hour=4,  minute=0,  second=0, tzinfo=games
                 "midnight":      time(hour=23, minute=0,  second=0, tzinfo=main_timezone),}      # UTC+1 - 24:00 - 1 h early
 
 def notification_dict(is_short=False):
-    full_dict = {"Welcome": "event",
+    full_dict = {"Welcome": None,
+                 "Level Up": None,
                  "Birthday": "morning",
                  "Card - Matagot": "weekly_cards",
                  "Card - Book of Monsters": "weekly_cards",
