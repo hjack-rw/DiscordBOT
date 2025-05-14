@@ -1,5 +1,5 @@
 from src.db import Database
-from src.db_classes import WelcomeMessages
+from src.db_classes import Experience, WelcomeMessages
 from src.tasks import *
 from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test
 from src.views import WelcomeView, MemberView
@@ -31,6 +31,7 @@ class BOT(commands.Bot):
         self.db.connect()
         atexit.register(self.db.disconnect)
 
+        self.user_experience = Experience()
         self.user_last_executed = {}
 
     async def on_ready(self):
@@ -82,9 +83,9 @@ class BOT(commands.Bot):
 
         ### TESTS HERE ###
         if test_bot["local_deploy"]:
+           
             
-            
-            
+      
             pass
         
         ### END ###

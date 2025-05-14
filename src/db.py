@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta
 from enum import Enum
 
+import functools
+import io
 import itertools
 import os
-import re
 import sqlite3
 
 
-__all__ = ["sql_insert_delete_with_all_validator", "sql_update_one_validator", "sql_entire_table_init_validator",
+__all__ = ["sql_full_table_validator", "sql_only_one_validator", "sql_update_with_valid_keys", "sql_record_exisits_validator", "sql_entire_table_init_validator",
            "permutation", "Filter", "Database"]
 
 
@@ -69,37 +70,72 @@ def check_variable(self, variables:list, reverse=False):
     
     return not check if reverse else check
 
-def sql_insert_delete_with_all_validator(func):
+def sql_full_table_validator(func):
     """Validator if the table was loaded fully"""
 
+    @functools.wraps(func)
     def validator(self, *args, **kwargs):
         if not check_variable(self, variables=["conditions", "is_shortened"]):
             return func(self, *args, **kwargs)
         
-        # print error not to interrupt app
-        print(f"Can only '{func.__name__}' with fully loaded table!")
+        raise Exception(f"sqlite3 table error: can only '{func.__name__}' with fully loaded table")
     
     return validator
 
-def sql_update_one_validator(func):
+def sql_only_one_validator(func):
     """Validate if more than one record was loaded"""
 
+    @functools.wraps(func)
     def validator(self, *args, **kwargs):
         if len(self.raw_data) < 2 and not check_variable(self, variables=["is_shortened"]):
             return func(self, *args, **kwargs)
         
-        # print error not to interrupt app
-        print(f"Can only '{func.__name__}' with one record loaded!")
+        raise Exception(f"sqlite3 table error: can only '{func.__name__}' with one record loaded")
     
     return validator
+
+def sql_update_with_valid_keys(column_names):
+    """Validate if keys used to update are valid"""
+
+    def run(func):
+        @functools.wraps(func)
+        def validator(self, *args, **kwargs):
+            valid_keys = [self._get_id_column(), *column_names]
+            invalid_keys = [key for key in kwargs if key not in valid_keys]
+            if invalid_keys:
+                raise ValueError(f"sqlite3 table error: invalid columns in kwargs: {invalid_keys}")
+            
+            return func(self, *args, **kwargs)
+        return validator
+    return run
+
+def sql_record_exisits_validator(not_archived=False):
+    """Validate if record exisits in the loaded data"""
+
+    def run(func):
+        @functools.wraps(func)
+        def validator(self, *args, **kwargs):
+            try:
+                column_id = self._get_id_column()
+                record = {kwargs[column_id]: self.raw_data[kwargs[column_id]]}
+                
+                if not_archived:
+                    if next(iter(self._get_values_from_raw_data(record)))["archived"]:
+                        raise Exception(f"sqlite3 table error: the {column_id.upper()} in question is ARCHIVED")
+                return func(self, *args, **kwargs)
+            except KeyError:
+                raise Exception(f"sqlite3 table error: no such record in the database")
+        return validator
+    return run
 
 def sql_entire_table_init_validator(func):
     """Validator for tables that need all rows loaded"""
 
+    @functools.wraps(func)
     def validator(self, *args, **kwargs):
         for kwarg in kwargs:
             if kwarg in ["omitted_columns", "specified_columns"]:
-                raise Exception(f"Needs to load all rows for '{self.__name__}'!")
+                raise Exception(f"sqlite3 table error: needs to load all rows for '{self.__name__}'!")
         return func(self, *args, **kwargs)
     
     return validator
@@ -107,33 +143,36 @@ def sql_entire_table_init_validator(func):
 def check_type(key, value, type, req_numeric=False):
     """Check the values in question if == type(column)"""
     
-    if type == "undefined":
-        if not isinstance(value, int) or not isinstance(value, float):
-            raise Exception(f"'{key}' is neither an int nor a float!")
-    
-    elif type == "permutation":
-        if not value.check():
-            raise Exception(f"'{key}' is not a suited permutation!")
-    
-    elif type == "binary":
-        if not isinstance(value, str) and not is_binary(value):
-            raise Exception(f"'{key}' is not binary!")
-    
-    else:
-        type_dict = {"int":int,"float":float,"str":str,"datetime":datetime}
+    try:
+        if type == "undefined":
+            if not isinstance(value, int) or not isinstance(value, float):
+                raise Exception(f"'{key}' is neither an int nor a float!")
         
-        if not isinstance(value, type_dict[type]):
-            raise Exception(f"'{key}' is not a {type}!")
-    
-    if req_numeric:
-        raise Exception(f"'{key}' has not a numeric filter!")
+        elif type == "permutation":
+            if not value.check():
+                raise Exception(f"'{key}' is not a suited permutation!")
+        
+        elif type == "binary":
+            if not isinstance(value, str) and not is_binary(value):
+                raise Exception(f"'{key}' is not binary!")
+        
+        else:
+            type_dict = {"int":int,"float":float,"str":str,"datetime":datetime, "bool":bool}
+            
+            if not isinstance(value, type_dict[type]):
+                raise Exception(f"'{key}' is not a {type}!")
+        
+        if req_numeric:
+            raise Exception(f"'{key}' has not a numeric filter!")
+    except Exception as error:
+        raise Exception(f"sqlite3 filter error: {str(error)}")
     
     return True
 
 # Clauses
 ############################################################################################################
 
-def apply_selected_columns(with_defaults=True):
+def apply_selected_columns(skip_when_default=False):
     """Apply correct formatting for selected columns"""
 
     def run(func):
@@ -145,23 +184,23 @@ def apply_selected_columns(with_defaults=True):
                 kwargs["columns"] = "*"
             return func(self, *args, **kwargs)
 
-        def apply_without_defaults(self, *args, **kwargs):
+        def apply_skip_when_default(self, *args, **kwargs):
             
             custom_id = kwargs.pop("custom_id", None)
 
             if custom_id:
                 kwargs["custom_id"] = self._return_value(custom_id, type(custom_id))
                 
-                kwargs["columns"] = filter(lambda item: not item[1]["has_default"], self.columns.items())
+                kwargs["columns"] = filter(lambda item: not item[1]["default"], self.columns.items())
             
             # else autoiterate
             else:
-                kwargs["columns"] = filter(lambda item: not item[1]["has_default"] and not item[1]["is_pk"], self.columns.items())
+                kwargs["columns"] = filter(lambda item: not item[1]["default"] and not item[1]["is_pk"], self.columns.items())
             return func(self, *args, **kwargs)
 
-        if with_defaults:
-            return apply
-        return apply_without_defaults
+        if skip_when_default:
+            return apply_skip_when_default
+        return apply
     return run
 
 class Filter(Enum):
@@ -181,7 +220,7 @@ def apply_conditions(func):
             clause = " AND ".join([f"{condition}" for condition in conditions])
 
             if "*" in clause:
-                Exception(f"an error occurred while applying conditions:\n'{clause}'")
+                raise Exception(f"sqlite3 error applying conditions:\n'{clause}'")
                 
             kwargs["conditions"] = "WHERE " + clause
         else:
@@ -206,74 +245,110 @@ def apply_order(func):
     
     return apply
 
-def get_update_clause(self, new_value):
+def get_update_clause(self, new_value, id=None):
     """Get update clause"""
-    
-    # get the record
-    id, record = zip(*self.raw_data.items())
-    id, record = next(iter(id)), next(iter(record))
 
-    record = list(record)
-    
-    update_clause = []
-    for column,value in new_value.items():
+    try:
+        # get the only loaded record
+        if id is None:
+            if len(self.raw_data) != 1:
+                raise Exception(f"for more than 1 record loaded ID has to be provided")
+            
+            id, record = next(iter(self.raw_data.items()))
         
-        # get column_id
-        try:
-            column_id = list(self.columns.keys())[1:].index(column)
-        except ValueError:
-            if column == self._get_id_column():
-                raise Exception(f"{column} is an ID!")
-            raise Exception(f"{column} is not a column name!")
+        # get the record by id
+        else:
+            record = self.raw_data[id]
 
-        # get the old value string
-        _, value_type, not_null, _  = self.columns[column].values()
-                
-        # get the old value
-        old_value = self._get_value(record[column_id], self._get_type_from_column(value_type))
+        record = list(record)
+        
+        update_clause = []
+        for column,value in new_value.items():
 
-        # protect from mismatched datatypes (except None)
-        if not_null:
+            # get column_id
             try:
+                column_id = list(self.columns.keys())[1:].index(column)
+            except ValueError:
+                if column == self._get_id_column():
+                    raise Exception(f"{column} is an ID!")
+                raise Exception(f"{column} is not a column name!")
+
+            # get the old value string
+            _, value_type, not_null, _  = self.columns[column].values()
+                    
+            # get the old value
+            old_value = self._get_value(record[column_id], self._get_type_from_column(value_type))
+
+            # protect from mismatched datatypes (except None)
+            if not_null and value is not None:
                 if type(old_value) != type(value):
-                    raise Exception("mismatched datatypes!")
-                elif type(old_value) == permutation:
-                    if not value.check():
-                        raise Exception("mismatched datatypes!")
-            except Exception as exception:
-                print("Error: ", exception)
-                value = old_value
+                    raise Exception(f"fatatype mismatch for column '{column}'")
+                if isinstance(old_value, permutation) and not value.check():
+                    raise Exception(f"invalid permutation object for column '{column}'")
 
-        # convert to db value
-        change = self._return_value(value, type(value))
+            # convert to db value
+            change = self._return_value(value, type(value))
+        
+            update_clause.append(f"{column} = {change}")
+
+            record[column_id] = change
+        return ", ".join(update_clause), id, record
     
-        update_clause += [f"{column} = {change}"]
-
-        record[column_id] = change
-    return ", ".join(update_clause), id, record
+    except Exception as exception:
+        raise Exception(f"sqlite3 UPDATE clause error: {str(exception)}")
 
 # SQL connection
 ############################################################################################################
 
 class Database():
+    database_path = os.getcwd() + "/src/"
+    database_name = "__database__.db"
+        
+    con = None
+    cur = None
+
     @classmethod
     def connect(cls):
-        """Access database"""
+        """CONNECT database"""
 
         try:
-            path = os.getcwd() + "/src/"
-            db = sqlite3.connect(path + '__database__.db')
+            cls.con = sqlite3.connect(cls.database_path + cls.database_name)
+            cls.cur = cls.con.cursor()
         except sqlite3.Error as error:
-            print(error)
-        finally:
-            cls.con = db
-            cls.cur = db.cursor()
+            raise Exception(f"sqlite3 CONNECT error: {str(error)}!")
     
+    @classmethod
     def disconnect(cls):
-        """Close database"""
+        """CLOSE database"""
 
-        cls.cur.close()
-        cls.con.close()
+        if cls.cur:
+            cls.cur.close()
+        
+        if cls.con:
+            cls.con.close()
+
+    @classmethod
+    def backup(cls):
+        """BACKUP database to a dump file"""
+
+        if cls.con:
+            with io.open(file=cls.database_path + f"{cls.database_name}-dump", mode="w", encoding="utf-8") as file: 
+            
+                # iterdump() function
+                for line in cls.con.iterdump():
+                    file.write('%s\n' % line)
+        else:
+            raise Exception("sqlite3 BACKUP error: no active database connection to back up!")
+    
+    @classmethod
+    def restore(cls):
+        """Restore database from a dump file"""
+
+        with open(file=cls.database_path + f"{cls.database_name}-dump", mode="r", encoding="utf-8") as file:
+            sql_script = file.read()
+
+        cls.con.executescript(sql_script)
+        cls.con.commit()
 
 # Basic SQL commands
 ############################################################################################################
@@ -289,15 +364,15 @@ class Database():
             command = f"SELECT {columns} FROM {table} {conditions} {order};"
             self.cur.execute(command)
         except sqlite3.OperationalError:
-            print("Error:", command)
+            raise Exception(f"sqlite3 SELECT error! faulty command:\n'{command}'")
         
         return {row[0]:tuple(row[1:]) for row in self.cur}
 
     @apply_conditions
-    def _update(self, conditions, new_value):
+    def _update(self, conditions, new_value, id=None):
         """Command UPDATE"""
 
-        update, id, record = get_update_clause(self, new_value)
+        update, id, record = get_update_clause(self, new_value, id)
 
         # execute command
         try:
@@ -305,43 +380,52 @@ class Database():
             self.cur.execute(command)
             self.con.commit()
         except sqlite3.OperationalError:
-            print("Error:", command)
+            raise Exception(f"sqlite3 UPDATE error! faulty command:\n'{command}'")
         
         # replace the changed value in record
         self.raw_data[id] = tuple(record)
 
-    @apply_selected_columns(with_defaults=False)
+    @apply_selected_columns(skip_when_default=True)
     def _insert(self, columns, new_record, custom_id=None):
         """Command INSERT"""
         
+        # insert the new record, but add in default values
+        idx, new_record_with_defaults = 0, []
+        for column, meta in self.columns.items():
+            if meta["is_pk"]:
+                continue
+            
+            default = meta["default"]
+            if default is not None:
+                new_record_with_defaults.append(None if default == 'NULL' else default)
+            else:
+                new_record_with_defaults.append(new_record[idx])
+                idx += 1
+
         # protect from creating duplicates
-        try:
-            {value:key for key,value in self.raw_data.items()}[new_record]
-            print(f"{new_record} is already in the database!")
+        if new_record_with_defaults in self.raw_data.values():
+            raise Exception(f"sqlite3 INSERT error: {new_record} is already in the database")
 
         # if not a duplicate
-        except KeyError:
-            
-            new_record = [self._return_value(value, type(value)) for value in new_record]
+        sql_values = [self._return_value(value, type(value)) for value in new_record]
 
-            if custom_id:
-                id, values = custom_id, (custom_id, *new_record)
-            else:
-                id, values = self._get_last_id() + 1, new_record
+        if custom_id is None:
+            id = self._get_last_id() + 1
+        else:
+            id, sql_values = custom_id, (custom_id, *sql_values)
 
-            columns = ", ".join([column for column,_ in columns]).upper()
-            values  = ", ".join([str(value) for value in values])
+        columns = ", ".join([column for column,_ in columns]).upper()
+        values  = ", ".join([str(value) for value in sql_values])
 
-            # execute command
-            try:
-                command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});".replace("None", "NULL")
-                self.cur.execute(command)
-                self.con.commit()
-            except sqlite3.IntegrityError:
-                raise Exception(f"failed to add to the database! Error: {command}")
-            
-            # insert the new record
-            self.raw_data[id] = tuple(new_record)
+        # execute command
+        try:
+            command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});".replace("None", "NULL")
+            self.cur.execute(command)
+            self.con.commit()
+        except sqlite3.IntegrityError:
+            raise Exception(f"sqlite3 INSERT error: failed to add to the database! command:\n'{command}'")
+
+        self.raw_data[id] = tuple(new_record_with_defaults)
 
     @apply_conditions
     def _delete(self, conditions, id):
@@ -362,7 +446,7 @@ class Database():
 
         # if doesn't exitst
         except KeyError:
-            print(f"no such record in the database! Error: {command}")
+            print(f"sqlite3 DELETE error: no such record in the database! command:\n'{command}'")
             return None
 
     def _get_columns(self, types={}, omitted_columns=[], specified_columns=[]):
@@ -380,10 +464,10 @@ class Database():
         self.cur.execute(f"PRAGMA table_info({self.table});")       
 
         columns = {}
-        for (_, column_name, type, not_null, has_default, is_pk) in self.cur:
+        for (_, column_name, type, not_null, default, is_pk) in self.cur:
 
             if "+" in column_name or "-" in column_name:
-                raise Exception(f"+ / - cannot appear in the column name!")
+                raise Exception(f"sqlite3 table error: '+' / '-' cannot appear in the column name!")
 
             # keep pk
             if not is_pk:
@@ -394,7 +478,7 @@ class Database():
             columns[column_name] = {"is_pk":       bool(is_pk),
                                     "type":        types_dict.pop(column_name, types_dict[type]),
                                     "not_null":    bool(not_null),
-                                    "has_default": bool(has_default)}
+                                    "default":     default}
         
         return columns
 
@@ -450,7 +534,7 @@ class Database():
 
         # protect from excluding specified
         if omitted_columns in specified_columns:
-            raise Exception(f"'specified_columns' and 'omitted_columns' can't overlap!")
+            raise Exception(f"sqlite3 filter error: 'specified_columns' and 'omitted_columns' can't overlap!")
         
         
         columns = self._get_columns(types, omitted_columns, specified_columns)
@@ -469,7 +553,7 @@ class Database():
             
 
             if key not in allowed_filters:
-                raise Exception(f"filter '{key}' can't be applied to the requested data/table!")
+                raise Exception(f"sqlite3 filter error: filter '{key}' can't be applied to the requested data/table!")
             
             
             type = columns[key]["type"]
@@ -487,7 +571,7 @@ class Database():
                             value = self._get_last_id()
                         
                         elif key == "message_id" and value in ["archived", "unarchived"]:
-                            self.conditions += [Filter.NULL.value.replace("*", key.upper())]
+                            self.conditions.append(Filter.NULL.value.replace("*", key.upper()))
                         
                             if value == "unarchived":
                                 self.conditions[-1] = self.conditions[-1].replace("IS", "IS NOT")
@@ -495,7 +579,7 @@ class Database():
                             continue
                         
                         elif isinstance(value, str):
-                            raise Exception(f"'{value}' is not an accepted keyword!")
+                            raise Exception(f"sqlite3 filter error: '{value}' is not an accepted keyword!")
 
                     check_type(key, value, type)
                 
@@ -508,12 +592,12 @@ class Database():
                 
                     check_type(key, value, type, req_numeric=spec_is_numeric)
 
-                self.conditions += [key.upper() + Filter.STANDARD.value.replace("*", str(self._return_value(value, type)))]
+                self.conditions.append(key.upper() + Filter.STANDARD.value.replace("*", str(self._return_value(value, type))))
 
             # bool
             elif type == "bool" and check_type(key, value, type, req_numeric=spec_is_numeric):
                 value_filter = Filter.BOOL_T if value else Filter.BOOL_F
-                self.conditions += [value_filter.value.replace("*", key.upper())]
+                self.conditions.append(value_filter.value.replace("*", key.upper()))
             
             
             # apply specification
@@ -537,16 +621,16 @@ class Database():
             column_name, spec = column[:-1], column[-1]
             
             if spec not in ["+", "-"]:
-                raise Exception(f"the last character has to be + / - !")
+                raise Exception(f"sqlite3 order error: the last character has to be '+' / '-' !")
             elif column_name not in list(columns.keys()):
-                raise Exception(f"the '{column_name}' does not exsit or was not loaded!")
+                raise Exception(f"sqlite3 order error: the '{column_name}' does not exsit or was not loaded!")
             
-            self.order += [column_name.upper() + (" ASC" if spec == "+" else " DESC")]
+            self.order.append(column_name.upper() + (" ASC" if spec == "+" else " DESC"))
         
         # columns dict {"column_name":...}
         return columns
 
-    def _get_values_from_raw_data(self, raw, add_id=False):
+    def _get_values_from_raw_data(self, raw, add_id=False, ommit=[]):
         """ Return the table records in a list of dict """
         
         return_list = []
@@ -560,10 +644,13 @@ class Database():
                     if add_id:
                         temp_dict[column] = idx
                     continue
-                
+
+                if column in ommit:
+                    continue
+
                 temp_dict[column] = self._get_value(instance[idx_column], self._get_type_from_column(value_type))
             
-            return_list += [temp_dict]
+            return_list.append(temp_dict)
         
         return return_list
 
@@ -583,3 +670,6 @@ class Database():
 
     def _get_last_id(self):
         return int(next(iter(self._select(table="sqlite_sequence", conditions=["NAME" + Filter.STANDARD.value.replace("*", f"'{self.table}'")]).values()))[0])
+    
+    def _get_conditions(self, id):
+        return [self._get_id_column().upper() + Filter.STANDARD.value.replace("*", str(id))]
