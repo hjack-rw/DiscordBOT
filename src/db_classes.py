@@ -39,7 +39,10 @@ class Experience(Database):
     @sql_full_table_validator
     @sql_record_exisits_validator
     def archive(self, user_id):
-        self._update(conditions=self._get_conditions(id=user_id), new_value={"archived":True}, id=user_id)
+        try:
+            self._update(conditions=self._get_conditions(id=user_id), new_value={"archived":True}, id=user_id)
+        except Exception:
+            pass
 
     # change xp // level // progress for a reset  or  custom_username // offset for info cards
     @sql_full_table_validator
@@ -141,9 +144,11 @@ class WelcomeMessages(Database):
     # remove WelcomeMessage
     @sql_full_table_validator
     def remove(self, user_id):
-        if deleted_record := self._delete(conditions=self._get_conditions(id=user_id), id=user_id):
-            return next(iter(self._get_values_from_raw_data(deleted_record)))["message_id"]
-        return None
+        try:
+            if deleted_record := self._delete(conditions=self._get_conditions(id=user_id), id=user_id):
+                return next(iter(self._get_values_from_raw_data(deleted_record)))["message_id"]
+        except Exception:
+            return None
 
     # return WelcomeMessages
     def get(self):
