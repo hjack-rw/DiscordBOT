@@ -4,6 +4,7 @@ from math import sqrt
 from datetime import datetime, timedelta
 from functools import reduce
 from PIL import Image, ImageFont, ImageDraw, ImageFilter
+from types import SimpleNamespace
 
 import copy
 import csv
@@ -47,33 +48,6 @@ headers = {"authorization": f"Bot {vars.bot_token}",
            "content-type": "application/json",
            "user-agent": "BOT (http://discord.com, v1.0)",}
 
-# Complete list at:
-# https://harrypotter.fandom.com/wiki/List_of_creatures
-animal_rank = {0:  "Flobberworm",   #100 xp to finish
-               1:  "Cornish Pixie", #255
-               2:  "Bowtruckle",    #475
-               3:  "Puffskein",     #770
-               4:  "Diricawl",      #1150
-               5:  "Kneazle",       #1625
-               6:  "Mooncalf",      #2205
-               7:  "Niffler",       #2900
-               8:  "Demiguise",     #3720
-               9:  "Yeti",          #4675
-               10: "Thunderbird",   #5775
-               11: "Sphinx",        #7030
-               12: "Erumpent",      #8450
-               13: "Graphorn",      #10045
-               14: "Hippogriff",    #11825
-               15: "Kelpie",        #13800
-               16: "Unicorn",       #15980
-               17: "Zouwu",         #18375
-               18: "Basilisk",      #20995
-               19: "Phoenix",       #23850
-               20: "Dragon"         #26950
-              }
-
-max_level = len(animal_rank) - 1
-
 class CustomHousecup:
     def __init__(self, house:str, all_members_count:int):
         self.name = house
@@ -88,6 +62,31 @@ class CustomHousecup:
            
         # sum of points / active members / all_members
         return sum(points) / max(len(points), 1) / max(self.all_members_count, 1)
+
+# Complete list at:
+# https://harrypotter.fandom.com/wiki/List_of_creatures
+pets = {0:  "Flobberworm",   #100 xp to finish
+        1:  "Cornish Pixie", #255
+        2:  "Bowtruckle",    #475
+        3:  "Puffskein",     #770
+        4:  "Diricawl",      #1150
+        5:  "Kneazle",       #1625
+        6:  "Mooncalf",      #2205
+        7:  "Niffler",       #2900
+        8:  "Demiguise",     #3720
+        9:  "Yeti",          #4675
+        10: "Thunderbird",   #5775
+        11: "Sphinx",        #7030
+        12: "Erumpent",      #8450
+        13: "Graphorn",      #10045
+        14: "Hippogriff",    #11825
+        15: "Kelpie",        #13800
+        16: "Unicorn",       #15980
+        17: "Zouwu",         #18375
+        18: "Basilisk",      #20995
+        19: "Phoenix",       #23850
+        20: "Dragon",        #26950
+        }
 
 form_answers = ["🤺 Solo Dueling",
                 "🤺🤺 Duo Dueling",
@@ -308,6 +307,16 @@ def get_level_and_progress(xp_total):
     return level, round(progress, 2)
 
 
+def get_animal_rank(level):
+    max_level = len(pets) - 1
+
+    # limit the levels
+    if level > max_level:
+        level = max_level
+    
+    return pets[level]
+
+
 def get_level_change(previous_level, current_level):
     
     # no change
@@ -458,7 +467,7 @@ def draw_leaderboard(user, rank, house, level, progress, static):
         background.alpha_composite(im=house_logo, dest=(388, 194))
 
     # progress details (pet name and level)    
-    draw.text(xy=(911, 170), text=f"Pet: {animal_rank[level]}", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
+    draw.text(xy=(911, 170), text=f"Pet: {get_animal_rank(level)}", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
     draw.text(xy=(911, 227), text=f"Level: {level}", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
 
 
@@ -502,14 +511,15 @@ def parse_xp_amount(func):
     @functools.wraps(func)
     async def parse(self, *args, **kwargs):
         server = kwargs.pop("server")
-        member = kwargs.pop("member")
+        member = kwargs.pop("member", SimpleNamespace(id=None))
         amount = kwargs.pop("amount")
         after_action= kwargs.pop("after_action", "add")
 
         if amount <= 0:
             raise Exception("parse error: 'amount' cannot be zero or negative")
 
-        record = self.get_record(user_id=member.id)
+        user_id = kwargs.get("user_id", member.id)
+        record = self.get_record(user_id=user_id)
         is_new = not bool(record)
 
         # modify existing record
@@ -532,8 +542,8 @@ def parse_xp_amount(func):
         else:  # action == "set"
             current_xp = amount
         
-        kwargs["is_new"] = is_new
-        kwargs["user_id"] = member.id
+        kwargs["is_new"]  = is_new
+        kwargs["user_id"] = user_id
 
         current_level, progress = get_level_and_progress(current_xp)
         kwargs["experience"] = {"xp": current_xp, "level": current_level, "progress": progress}
@@ -543,10 +553,11 @@ def parse_xp_amount(func):
 
         current_xp = func(self, *args, **kwargs)
 
-        # send a level up message
-        level_ups = get_level_change(previous_level, current_level)
-        if level_ups:
-            await print_notification(server, event_name="Level Up", variables=[member, level_ups], is_task=False)
+        # when on server send a level up message
+        if server:
+            level_ups = get_level_change(previous_level, current_level)
+            if level_ups:
+                await print_notification(server, event_name="Level Up", variables=[member, level_ups], is_task=False)
 
         return current_xp
     return parse
@@ -581,7 +592,7 @@ def create_leaderboard(server, data, custom_housecup):
 
 
     ## create loop for each user ##
-    rank, leaderboard = 0, []
+    rank, rank_xp, leaderboard = 0, 0, []
     for user in data:
 
         # get member, skip if can't
@@ -589,16 +600,13 @@ def create_leaderboard(server, data, custom_housecup):
         if member is None:
             continue
         else:
-            rank += 1
+            if user["xp"] != rank_xp:
+                rank += 1
+                rank_xp = user["xp"]
 
         # get member level and progress from Experience
         level = user["level"]
         progress = user["progress"]
-
-        # limit the levels
-        if level > max_level:
-            level = max_level
-            progress = 1
 
         house = None
         roles = [role.name for role in member.roles]
@@ -606,7 +614,7 @@ def create_leaderboard(server, data, custom_housecup):
         # add points for the custom housecup
         for idx, house in enumerate(custom_housecup):
             if house.name in roles:
-                custom_housecup[idx].points.append(user["xp"])
+                custom_housecup[idx].points.append(rank_xp)
                 house = house.name
                 break
         else:
@@ -895,8 +903,8 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
 
         event_info = {"mention":    f"Mention: <@{user.id}>",
                       "title":      f"Level {level_ups[-1]}!",
-                      "description":f"**{user.nick or user.global_name}** just caught a **{animal_rank[level_ups[0]]}** <:hugs:1256225688403447888>\n",
-                      "extra_fields":[f"Wait! There is more... they also caught a {animal_rank[level]}\n" for level in level_ups[1:]],
+                      "description":f"**{user.nick or user.global_name}** just caught a **{get_animal_rank(level=level_ups[0])}** <:hugs:1256225688403447888>\n",
+                      "extra_fields":[f"Wait! There is more... they also caught a {get_animal_rank(level)}\n" for level in level_ups[1:]],
                       "footer":   '''"One can never have enough pets!"''',
                       "account":     "Prof. Dumbledore",}
 

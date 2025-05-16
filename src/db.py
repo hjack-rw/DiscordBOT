@@ -433,10 +433,10 @@ class Database():
 
         # protect from deleting nonexistant
         try:
+            command = f"DELETE FROM {self.table} {conditions};"
             record = self.raw_data[id]
             
             # execute command
-            command = f"DELETE FROM {self.table} {conditions};"
             self.cur.execute(command)
             self.con.commit()
             del self.raw_data[id]
@@ -446,8 +446,7 @@ class Database():
 
         # if doesn't exitst
         except KeyError:
-            print(f"sqlite3 DELETE error: no such record in the database! command:\n'{command}'")
-            return None
+            raise Exception(f"sqlite3 DELETE error: no such record in the database! command:\n'{command}'")
 
     def _get_columns(self, types={}, omitted_columns=[], specified_columns=[]):
         """Get column names and basic info"""
