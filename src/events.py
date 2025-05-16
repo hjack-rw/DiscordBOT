@@ -4,10 +4,9 @@ from src.functions import draw_infocard, parse_xp_amount, print_notification
 from src.variables import test_bot, channel_sections_ids, channel_ids, channel_ids_test
 from src.views import WelcomeView
 
+from asyncio import get_event_loop
 from datetime import datetime
-from math import ceil
 from random import randint
-from time import time
 
 # SETTINGS
 # for testing
@@ -85,23 +84,72 @@ async def on_message(message):
     if message.channel.category and message.channel.category.id not in [channel_sections_ids["general"], channel_sections_ids["guides"], channel_sections_ids["offtopic"]]:
         return
 
-    else:
-        now = time()
-        last_time = USER_LAST_EXECUTED.get(message.author.id, 0)
+    # user cooldown
+    now = get_event_loop().time()
+    last_time = USER_LAST_EXECUTED.get(message.author.id, 0)
 
-        # assert cooldown
-        if now - last_time < MESSAGE_COOLDOWN:
-            return
-        
-        # add xp (random xp (15-25) + length * 0.02)     
-        xp_gained = randint(15, 25) + ceil(len(message.content) / 50)
-        
+    # assert cooldown
+    if now - last_time < MESSAGE_COOLDOWN:
+        return # still in cooldown
+    
+    # update cooldown
+    USER_LAST_EXECUTED[message.author.id] = now
+    
+    
+    # double points on weekend 
+    multiplier = 2 if datetime.now().weekday() in [5, 6] else 1
+
+    
+    # attachments have fixed points, capped at 5 xp
+    if (count_attachments := min(len(message.attachments), 5)) > 0:
+        base = 15 * count_attachments * multiplier
+    
+    # random xp for messages btween 15-25
+    else:
+        base = randint(15, 25) * multiplier
+
+    
+    # reward 1 additional xp per 50 characters, capped at 5 xp
+    xp_gained = base + min(len(message.content) // 50, 5)
+    
+    if not test_bot["test_events"]:
         try:
             await USER_EXPERIENCE.tweak(server=SERVER, member=message.author, amount=xp_gained)
         except Exception as error:
             print(str(error))
 
 
-#@bot.event
-#async def on_reaction_add(reaction, user):
-#    message = reaction.message
+# React on Server
+@bot.event
+async def on_reaction_add(reaction, user):
+    SERVER             = bot.server
+    USER_EXPERIENCE    = bot.user_experience
+    USER_LAST_REACTED  = bot.user_last_reacted
+    REACTION_COOLDOWN  = 30
+
+    # skip bots
+    if user.bot:
+        return
+
+    message = reaction.message
+
+    # skip if message channel is not allowed
+    if message.channel.id not in [channel_ids["portraits"], channel_ids["hagrids-hut"], channel_ids["dueling-club"], channel_ids["felix-felicis"], channel_ids["gallery"]]:
+        return
+
+    # user cooldown    
+    now = get_event_loop().time()
+    last_time = USER_LAST_REACTED.get(user.id, 0)
+    
+    # assert cooldown
+    if now - last_time < REACTION_COOLDOWN:
+        return  # still in cooldown
+    
+    # update cooldown
+    USER_LAST_REACTED[user.id] = now
+
+    if not test_bot["test_events"]:
+        try:
+            await USER_EXPERIENCE.tweak(server=SERVER, member=user, amount=5)
+        except Exception as error:
+            print(str(error))

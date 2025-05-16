@@ -4,13 +4,6 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! leaderboard:
-# / problem_name = {1108425644032938044:"Voodoochild", 776678540166823936:"LEIL", 1132281522041401454:"BADGER", 871307021138399232:"Tam Lin", 1140274502882820116: "S i r i u s"}
-# / remove offset = {?:Polina, ?:Zalia, 1132281522041401454:Badger, 1108425644032938044:Voodoo, ?:Jlyata, ?:Draconi, ?:Eslamo, 1140274502882820116:Sirius, ?:Alki, }
-# - on reaction / on photo / double points for weekends
-
-#TODO! db update multiple, instead of just one
-
 #TODO! rework the sorthing-hat channel:
 # ~house picking system and change nickname~
 # ~add the member list permanent~
@@ -20,9 +13,6 @@ if __name__ == '__main__':
 # pick a subscription and add the role to members before the event
 # clear all subscriptions on another button
 # IMPORTANT: check if clearing the role keeps the notification!
-
-#TODO! portkey:
-# automatic add to a paste service
 
 #TODO! sprout:
 # trigger on herbology related stuff:
@@ -36,5 +26,16 @@ if __name__ == '__main__':
 # - limit for user that is set in code (2 for testing)
 # - seperate into aquatic and non aquatic
 
+
+## CRAZY IDEAS ##
+
 #TODO! a queue for all events this day so if the bot restarts he knows if he has to send something
 # - when they trigger normally just remove them
+
+#TODO! portkey:
+# automatic add to a paste service
+
+#TODO! db changes:
+# - more backups?
+# - update multiple, instead of just one
+# - multiple primary keys

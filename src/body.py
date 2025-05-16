@@ -31,8 +31,9 @@ class BOT(commands.Bot):
         self.db.connect()
         atexit.register(self.db.disconnect)
 
-        self.user_experience = Experience()
+        self.user_experience    = Experience()
         self.user_last_executed = {}
+        self.user_last_reacted  = {}
 
     async def on_ready(self):
         print(f"{'Deployed' if any(test_bot.values()) else 'Logged on as'} {self.user}!")
@@ -78,7 +79,7 @@ class BOT(commands.Bot):
         
 
         if test_bot["test_events"]:
-            self.dispatch('member_join', SERVER.get_member(385899007991480321))
+            self.dispatch('member_join',   SERVER.get_member(385899007991480321))
             self.dispatch('member_remove', SERVER.get_member(385899007991480321))
 
         ### TESTS HERE ###

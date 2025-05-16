@@ -38,7 +38,12 @@ channel_ids = {"welcome":           1221838993071538330,
                "announcements":     1222126723902996480,
                "portkey-arrival":   1281357645902512168,
                "leaderboard":       1305540120631447654,
-               "the-3-broomsticks": 1221920204385161319,}
+               "the-3-broomsticks": 1221920204385161319,
+               "portraits":         1221864727882498088,
+               "hagrids-hut":       1269713312438816819,
+               "dueling-club":      1222118438596771851,
+               "felix-felicis":     1235180456878542979,
+               "gallery":           1287065098648555531,}
 
 channel_ids_test = {"assets": 1317172237572509787,}
 channel_ids_test.update({key:channel_ids["testing"] for key in channel_ids if key not in ["assets",]})

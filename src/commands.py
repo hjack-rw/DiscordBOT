@@ -2,7 +2,7 @@ import src.variables as vars
 
 from src.body import bot
 from src.db_classes import *
-from src.functions import CustomHousecup, standard_response, send_webhook, get_avatar, draw_infocard, get_csv, create_leaderboard, print_portkey, parse_portkey_data, print_house_members
+from src.functions import CustomHousecup, standard_response, send_webhook, get_avatar, draw_infocard, create_leaderboard, print_portkey, parse_portkey_data, print_house_members
 from src.tasks import print_notification
 from src.views import *
 
@@ -29,116 +29,26 @@ else:
     channel_ids = vars.channel_ids
 
 
-# Leaderboard functionality
-@bot.tree.command(name="update_lb")
-@standard_response()
-async def update_leaderboard(interaction: Interaction, mention_all:bool, with_custom_housecup:bool, url:str):
-    ''' Updates the Server's Leaderboard '''
-
-    SERVER  = bot.server
-    CHANNEL = SERVER.get_channel(channel_ids["leaderboard"])
-
-    # get leaderboard info
-    if data := Experience(archived=False, order=["xp-"]).get():
-
-        # clear the channel
-        await CHANNEL.purge(limit=None)
-
-        custom_housecup = []
-
-        # post custom housecup
-        if with_custom_housecup:
-            custom_housecup_message = await CHANNEL.send(content="", embed=Embed(title="The leading house is... ", color=vars.system_embed_color))
-
-            houses_names = set(list(vars.houses)[:-1])
-            custom_housecup = [CustomHousecup(house=role.name, all_members_count=len(role.members)) for role in SERVER.roles if role.name in houses_names]
-        
-        leaderboard, custom_housecup = create_leaderboard(SERVER, data, custom_housecup)
-
-        # post leaderboard
-        for position in leaderboard:
-            user_id, color, file = position
-            
-            embed = Embed(color=color)
-            embed.set_image(url=f"attachment://{file.filename}")
-
-            await CHANNEL.send(content="", embed=embed, file=file)
-
-            if mention_all:
-                await CHANNEL.send(content=f"<@{user_id}>")
-        
-        # find winning house
-        if with_custom_housecup:
-            all_points = list(chain.from_iterable([house.points for house in custom_housecup]))
-
-            mean = statistics.mean(all_points)
-            sd   = statistics.stdev(all_points)
-            
-            scoreboard = {house.name:house.for_scoreboard(mean, sd) for house in custom_housecup}
-
-            print(scoreboard)
-            winning_house = max(custom_housecup, key=lambda house: scoreboard.get(house.name, float('-inf'))).name
-            
-            custom_housecup_embed = custom_housecup_message.embeds[0]
-            custom_housecup_embed.title += f"\n {winning_house.capitalize()} !!!"
-            custom_housecup_embed.set_thumbnail(url=vars.houses[winning_house]["crest"])
-
-            await custom_housecup_message.edit(content="", embed=custom_housecup_embed)
-
-@bot.tree.command(name="tweak_xp")
+# DB functionality
+@bot.tree.command(name="backup_db")
 @standard_response(silent=True)
-async def tweak_xp(interaction: Interaction, member:Member, action:Literal["Add", "Subtract", "Set"], amount:int):
-    ''' Add / Subtract / Set  XP for User '''
+async def backup_db(interaction:Interaction):
+    ''' Backup the Database manually '''
 
-    SERVER          = bot.server
-    CHANNEL         = SERVER.get_channel(channel_ids["points-log"])
-    USER_EXPERIENCE = bot.user_experience
+    DB = bot.db
+    DB.backup()
 
-    action = action.lower()
-    current_xp = await USER_EXPERIENCE.tweak(server=SERVER, member=member, amount=amount, after_action=action.lower())
+    await interaction.response.send_message("The Database was **backed up**!", ephemeral=True)
 
-    if current_xp:
-        if action != "set":
-            action += "ed"
-            log = f"**{member.nick or member.global_name}** - {amount} points {action}! Current XP: **{current_xp}**"
-        else:
-            log = f"**{member.nick or member.global_name}** - points set! XP: **{amount}**"
-
-        await interaction.response.send_message(f"User {member.nick or member.global_name} has been **{action}**!", ephemeral=True)
-        await CHANNEL.send(content=log)
-
-@bot.tree.command(name="reset_xp")
+@bot.tree.command(name="restore_db")
 @standard_response(silent=True)
-async def reset_xp(interaction: Interaction, member:Member):
-    ''' Reset XP for User '''
-    
-    SERVER  = bot.server
-    CHANNEL = SERVER.get_channel(channel_ids["points-log"])
+async def restore_db(interaction:Interaction):
+    ''' Restore the Database from backup '''
 
-    USER_EXPERIENCE = bot.user_experience
-    USER_EXPERIENCE.change(user_id=member.id, xp=0, level=0, progress=0.0)
+    DB = bot.db
+    DB.restore()
 
-    await interaction.response.send_message(f"User {member.nick or member.global_name} has been **reseted**!", ephemeral=True)
-    await CHANNEL.send(content=f"**{member.nick or member.global_name}** - points reseted! XP: **0**")
-
-@bot.tree.command(name="change_lb")
-@standard_response(silent=True)
-async def tweak_xp(interaction: Interaction, member:Member, username:Optional[str], offset:Optional[bool]):
-    ''' Change the Leaderboard properties for User '''
-    
-    options = {}
-    if username is None and offset is None:
-        raise Exception("pick a 'username' or an 'offset'")
-    
-    if username and username.strip() != "":
-        options["username"] = username
-    if offset is not None:
-        options["offset"] = offset
-
-    USER_EXPERIENCE = bot.user_experience
-    USER_EXPERIENCE.change(user_id=member.id, **options)
-
-    await interaction.response.send_message(f"User {member.nick or member.global_name} leaderboard card has been **changed**!", ephemeral=True)
+    await interaction.response.send_message("The Database was **restored**!", ephemeral=True)
 
 ############################################################################################################
 
@@ -201,54 +111,27 @@ async def add_disciplines(interaction:Interaction):
     
     ExtraVariable(name="housecup_disciplines").change(to=tuple(all_picked))
 
+############################################################################################################
 
-@bot.tree.command(name="is_house_cup_this_week")
-@standard_response(silent=True)
-async def is_housecup_this_week(interaction:Interaction):
-    ''' Informs you if there will be a House Cup this week '''
-
-    today = datetime.now(tz=vars.gameserver_timezone)
-    today = today.replace(hour=0,
-                          minute=0,
-                          second=0,
-                          microsecond=0,)
+# Webhook functionality
+@bot.tree.command(name="polyjuice")
+@standard_response()
+async def send_as(interaction:Interaction, member:Optional[Member], option:Optional[Literal[tuple(vars.custom_avatars.keys())]], say:str): # type: ignore
+    ''' Send a message as User '''
     
-    housecup_disciplines_names = vars.housecup_disciplines_names
-    disciplines = ExtraVariable(name="housecup_disciplines").get()
+    if (member and not option) or (not member and option):
+        user_name = member.nick if member else option
+        user_avatar_url = get_avatar(member, none=True)
 
-    trigger = False
-
-    if (delta := (today - vars.base_housecup_date).days  % (14*4) - 1) > 50:    
-        trigger = True
-        discipline = disciplines[0]
-        text = "New Season!\nThe schedule hasn't been released yet."
+        await send_webhook(target_channel=interaction.channel, user_name=user_name, user_avatar_url=user_avatar_url, content=say)
+    elif member and option:
+        raise Exception("pick either a 'member' or an 'option', not both")
     else:
-        dates, text = [today - timedelta(days=delta)], []
-        for idx in range(4):
-            if idx != 0:
-                dates.append(dates[-1] + timedelta(days=14))
-            text.append(f"{idx+1}. **{housecup_disciplines_names[disciplines[idx]]}** - {dates[-1].strftime('%d/%m/%Y')}\n")
-        
-        if today.weekday() != 6:
-            next_saturday = today + timedelta(days=5-today.weekday())
-
-            try:
-                discipline = disciplines[dates.index(next_saturday)]
-                trigger = True
-            except ValueError:
-                pass
-
-    embed = Embed(color=vars.system_embed_color, description="".join(text))
-    
-    if trigger:
-        await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup this week!", embed=embed, ephemeral=True)
-    else:
-        await interaction.response.send_message("There's **NO** House Cup this week!", embed=embed, ephemeral=True)
-
+        raise Exception("pick a 'member' or an 'option'")
 
 @bot.tree.command(name="send_notification")
 @standard_response()
-async def send_notification(interaction:Interaction, event:Literal[tuple(vars.notification_dict().keys())], member:Optional[Member], same_day:Optional[bool]): # type: ignore
+async def send_notification(interaction:Interaction, event:Literal[tuple(vars.notification_dict().keys())], member:Optional[Member], same_day:Optional[bool]=False): # type: ignore
     ''' Send the notification manually '''
 
     SERVER = bot.server
@@ -314,7 +197,7 @@ async def accept_portkey_for_user(interaction:Interaction, message_id:str, membe
 
 @bot.tree.command(name="post_portkey")
 @standard_response()
-async def post_portkey(interaction:Interaction, portkey_id:str):
+async def post_portkey(interaction:Interaction, portkey_id:str="last"):
     ''' Print a Portkey '''
 
     SERVER = bot.server
@@ -357,27 +240,125 @@ async def edit_portkey(interaction:Interaction, message:Message):
 
 ############################################################################################################
 
-# Webhook functionality
-@bot.tree.command(name="polyjuice")
+# Leaderboard functionality
+@bot.tree.command(name="update_lb")
 @standard_response()
-async def send_as(interaction:Interaction, member:Optional[Member], option:Optional[Literal[tuple(vars.custom_avatars.keys())]], say:str): # type: ignore
-    ''' Send a message as User '''
-    
-    if (member and not option) or (not member and option):
-        user_name = member.nick if member else option
-        user_avatar_url = get_avatar(member, none=True)
+async def update_leaderboard(interaction: Interaction, mention_all:bool=True, with_custom_housecup:bool=True):
+    ''' Updates the Server's Leaderboard '''
 
-        await send_webhook(target_channel=interaction.channel, user_name=user_name, user_avatar_url=user_avatar_url, content=say)
-    elif member and option:
-        raise Exception("pick either a 'member' or an 'option', not both")
-    else:
-        raise Exception("pick a 'member' or an 'option'")
+    SERVER  = bot.server
+    CHANNEL = SERVER.get_channel(channel_ids["leaderboard"])
+
+    # get leaderboard info
+    if data := Experience(archived=False, order=["xp-"]).get():
+
+        # clear the channel
+        await CHANNEL.purge(limit=None)
+
+        custom_housecup = []
+
+        # post custom housecup
+        if with_custom_housecup:
+            custom_housecup_message = await CHANNEL.send(content="", embed=Embed(title="The leading house is... ", color=vars.system_embed_color))
+
+            houses_names = set(list(vars.houses)[:-1])
+            custom_housecup = [CustomHousecup(house=role.name, all_members_count=len(role.members)) for role in SERVER.roles if role.name in houses_names]
+        
+        leaderboard, custom_housecup = create_leaderboard(SERVER, data, custom_housecup)
+
+        # post leaderboard
+        for position in leaderboard:
+            user_id, color, file = position
+            
+            embed = Embed(color=color)
+            embed.set_image(url=f"attachment://{file.filename}")
+
+            await CHANNEL.send(content="", embed=embed, file=file)
+
+            if mention_all:
+                await CHANNEL.send(content=f"<@{user_id}>")
+        
+        # find winning house
+        if with_custom_housecup:
+            all_points = list(chain.from_iterable([house.points for house in custom_housecup]))
+
+            mean = statistics.mean(all_points)
+            sd   = statistics.stdev(all_points)
+            
+            scoreboard = {house.name:house.for_scoreboard(mean, sd) for house in custom_housecup}
+
+            print(scoreboard)
+            winning_house = max(custom_housecup, key=lambda house: scoreboard.get(house.name, float('-inf'))).name
+            
+            custom_housecup_embed = custom_housecup_message.embeds[0]
+            custom_housecup_embed.title += f"\n {winning_house.capitalize()} !!!"
+            custom_housecup_embed.set_thumbnail(url=vars.houses[winning_house]["crest"])
+
+            await custom_housecup_message.edit(content="", embed=custom_housecup_embed)
+
+@bot.tree.command(name="tweak_xp")
+@standard_response(silent=True)
+async def tweak_xp(interaction: Interaction, member:Member, action:Literal["Add", "Subtract", "Set"]="Add", amount:int=10, comment:Optional[str]=None):
+    ''' Add / Subtract / Set  XP for User '''
+
+    SERVER          = bot.server
+    CHANNEL         = SERVER.get_channel(channel_ids["points-log"])
+    USER_EXPERIENCE = bot.user_experience
+
+    action = action.lower()
+    current_xp = await USER_EXPERIENCE.tweak(server=SERVER, member=member, amount=amount, after_action=action.lower())
+
+    if current_xp:
+        if action != "set":
+            action += "ed"
+            log = f"**{member.nick or member.global_name}** - {amount} points {action}! Current XP: **{current_xp}**"
+        else:
+            log = f"**{member.nick or member.global_name}** - points set! XP: **{amount}**"
+
+        if comment:
+            log += f"\nComment: {comment}"
+
+        await interaction.response.send_message(f"User {member.nick or member.global_name} has been **{action}**!", ephemeral=True)
+        await CHANNEL.send(content=log)
+
+@bot.tree.command(name="reset_xp")
+@standard_response(silent=True)
+async def reset_xp(interaction: Interaction, member:Member):
+    ''' Reset XP for User '''
+    
+    SERVER  = bot.server
+    CHANNEL = SERVER.get_channel(channel_ids["points-log"])
+
+    USER_EXPERIENCE = bot.user_experience
+    USER_EXPERIENCE.change(user_id=member.id, xp=0, level=0, progress=0.0)
+
+    await interaction.response.send_message(f"User {member.nick or member.global_name} has been **reseted**!", ephemeral=True)
+    await CHANNEL.send(content=f"**{member.nick or member.global_name}** - points reseted! XP: **0**")
+
+@bot.tree.command(name="change_lb")
+@standard_response(silent=True)
+async def tweak_xp(interaction: Interaction, member:Member, username:Optional[str], offset:Optional[bool]):
+    ''' Change the Leaderboard properties for User '''
+    
+    options = {}
+    if username is None and offset is None:
+        raise Exception("pick a 'username' or an 'offset'")
+    
+    if username and username.strip() != "":
+        options["username"] = username
+    if offset is not None:
+        options["offset"] = offset
+
+    USER_EXPERIENCE = bot.user_experience
+    USER_EXPERIENCE.change(user_id=member.id, **options)
+
+    await interaction.response.send_message(f"User {member.nick or member.global_name} leaderboard card has been **changed**!", ephemeral=True)
 
 ############################################################################################################
 
 # User commands
 @bot.tree.command(name="house_members")
-@standard_response()
+@standard_response(silent=True)
 async def house_members(interaction:Interaction):
     ''' Prints a list of members of each House, that will be deleted after 5 min '''
     
@@ -387,10 +368,53 @@ async def house_members(interaction:Interaction):
     message = await interaction.channel.send(content="", embed=print_house_members(SERVER.members, page=0, filter=0), delete_after=60*MINUTES)
     await message.edit(view=MemberView(SERVER.members, message, is_command=True))
 
-
 @bot.tree.command(name="change_nickname")
-@standard_response()
+@standard_response(silent=True)
 async def change_nick(interaction:Interaction, nick:str):
     ''' Change your Nickname on Discord to the one in game '''
 
     await interaction.user.edit(nick=nick)
+    await interaction.response.send_message("Your Nickname should have now **changed**!", ephemeral=True)
+
+@bot.tree.command(name="is_house_cup_this_week")
+@standard_response(silent=True)
+async def is_housecup_this_week(interaction:Interaction):
+    ''' Informs you if there will be a House Cup this week '''
+
+    today = datetime.now(tz=vars.gameserver_timezone)
+    today = today.replace(hour=0,
+                          minute=0,
+                          second=0,
+                          microsecond=0,)
+    
+    housecup_disciplines_names = vars.housecup_disciplines_names
+    disciplines = ExtraVariable(name="housecup_disciplines").get()
+
+    trigger = False
+
+    if (delta := (today - vars.base_housecup_date).days  % (14*4) - 1) > 50:    
+        trigger = True
+        discipline = disciplines[0]
+        text = "New Season!\nThe schedule hasn't been released yet."
+    else:
+        dates, text = [today - timedelta(days=delta)], []
+        for idx in range(4):
+            if idx != 0:
+                dates.append(dates[-1] + timedelta(days=14))
+            text.append(f"{idx+1}. **{housecup_disciplines_names[disciplines[idx]]}** - {dates[-1].strftime('%d/%m/%Y')}\n")
+        
+        if today.weekday() != 6:
+            next_saturday = today + timedelta(days=5-today.weekday())
+
+            try:
+                discipline = disciplines[dates.index(next_saturday)]
+                trigger = True
+            except ValueError:
+                pass
+
+    embed = Embed(color=vars.system_embed_color, description="".join(text))
+    
+    if trigger:
+        await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup this week!", embed=embed, ephemeral=True)
+    else:
+        await interaction.response.send_message("There's **NO** House Cup this week!", embed=embed, ephemeral=True)
