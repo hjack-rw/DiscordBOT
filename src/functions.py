@@ -4,6 +4,7 @@ from math import sqrt
 from datetime import datetime, timedelta
 from functools import reduce
 from PIL import Image, ImageFont, ImageDraw, ImageFilter
+from types import SimpleNamespace
 
 import copy
 import csv
@@ -502,14 +503,15 @@ def parse_xp_amount(func):
     @functools.wraps(func)
     async def parse(self, *args, **kwargs):
         server = kwargs.pop("server")
-        member = kwargs.pop("member")
+        member = kwargs.pop("member", SimpleNamespace(id=None))
         amount = kwargs.pop("amount")
         after_action= kwargs.pop("after_action", "add")
 
         if amount <= 0:
             raise Exception("parse error: 'amount' cannot be zero or negative")
 
-        record = self.get_record(user_id=member.id)
+        user_id = kwargs.get("user_id", member.id)
+        record = self.get_record(user_id=user_id)
         is_new = not bool(record)
 
         # modify existing record
@@ -532,8 +534,8 @@ def parse_xp_amount(func):
         else:  # action == "set"
             current_xp = amount
         
-        kwargs["is_new"] = is_new
-        kwargs["user_id"] = member.id
+        kwargs["is_new"]  = is_new
+        kwargs["user_id"] = user_id
 
         current_level, progress = get_level_and_progress(current_xp)
         kwargs["experience"] = {"xp": current_xp, "level": current_level, "progress": progress}
@@ -543,10 +545,11 @@ def parse_xp_amount(func):
 
         current_xp = func(self, *args, **kwargs)
 
-        # send a level up message
-        level_ups = get_level_change(previous_level, current_level)
-        if level_ups:
-            await print_notification(server, event_name="Level Up", variables=[member, level_ups], is_task=False)
+        # when on server send a level up message
+        if server:
+            level_ups = get_level_change(previous_level, current_level)
+            if level_ups:
+                await print_notification(server, event_name="Level Up", variables=[member, level_ups], is_task=False)
 
         return current_xp
     return parse
@@ -581,7 +584,7 @@ def create_leaderboard(server, data, custom_housecup):
 
 
     ## create loop for each user ##
-    rank, leaderboard = 0, []
+    rank, rank_xp, leaderboard = 0, 0, []
     for user in data:
 
         # get member, skip if can't
@@ -589,7 +592,9 @@ def create_leaderboard(server, data, custom_housecup):
         if member is None:
             continue
         else:
-            rank += 1
+            if user["xp"] != rank_xp:
+                rank += 1
+                rank_xp = user["xp"]
 
         # get member level and progress from Experience
         level = user["level"]
@@ -606,7 +611,7 @@ def create_leaderboard(server, data, custom_housecup):
         # add points for the custom housecup
         for idx, house in enumerate(custom_housecup):
             if house.name in roles:
-                custom_housecup[idx].points.append(user["xp"])
+                custom_housecup[idx].points.append(rank_xp)
                 house = house.name
                 break
         else:
