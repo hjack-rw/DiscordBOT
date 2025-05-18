@@ -4,7 +4,10 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! remove past bot notifications on midnight (if exist)
+#TODO! remove past bot notifications on midnight (if exist), but not SNAPE
+# - also fix DELETE SNAPE!
+
+#TODO! "this week" if it is not saturday else "today"
 
 #TODO! rework the sorthing-hat channel:
 # ~house picking system and change nickname~
@@ -39,5 +42,5 @@ if __name__ == '__main__':
 
 #TODO! db changes:
 # - more backups?
-# - update multiple, instead of just one
-# - multiple primary keys
+# - update multiple, instead of just one?
+# - multiple primary keys?

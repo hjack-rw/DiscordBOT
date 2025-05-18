@@ -11,9 +11,6 @@ from discord.ui import button, Button, View, Select
 from random import choice
 
 
-__all__ = ["WelcomeView", "DropdownView", "MemberView"] 
-
-
 # welcome message
 class WelcomeView(View):
     

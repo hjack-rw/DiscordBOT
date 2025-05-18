@@ -4,21 +4,44 @@ from src.functions import parse_xp_amount, parse_portkey_data
 import copy
 
 
-__all__ = ["Experience", "ExtraVariable", "Portkeys", "WelcomeMessages"]
-
-
 # Tables
 ############################################################################################################
+
+class ExperienceInfo(Database):
+    def __init__(self, extended=False, **kwargs):
+        self.table        = "experience_info"
+        self.origin_table = "experience"
+        self.extended     = extended
+        self.columns      = self._setup_table(types={"pet_from_sea":"bool", "pet_dog":"bool", "pet_ashwinder":"bool", "pet_thestral":"bool", "offset":"bool", "archived":"bool"}, **kwargs)
+        self.raw_data     = self._select(self.table)
+    
+    # change custom_username // offset for info cards
+    @sql_only_one_validator
+    @sql_update_with_valid_keys(column_names=["username", "pet_from_sea", "pet_dog", "pet_ashwinder", "pet_thestral", "favourite_color", "offset"])
+    def change(self, **kwargs):
+        self._update(new_value=kwargs)
+    
+    # return ExperienceInfo
+    def get(self, multiple=False):
+        if not multiple:
+            try:
+                return self._get_values_from_raw_data(self.raw_data, add_id=False, ommit=["username", "offset"])[0]
+            except IndexError:
+                return None   
+        
+        return self._get_values_from_raw_data(self.raw_data, add_id=True, ommit=["archived"] if self.extended else [])
+
 
 class Experience(Database):
     def __init__(self, **kwargs):
         self.table    = "experience"
-        self.columns  = self._setup_table(types={"offset":"bool", "archived":"bool"}, **kwargs)
+        self.columns  = self._setup_table(types={"archived":"bool"}, **kwargs)
         self.raw_data = self._select(self.table)
     
     # add / subtract / set Experience
     @sql_full_table_validator
     @parse_xp_amount
+    @sql_create_connection(table=ExperienceInfo)
     @sql_update_with_valid_keys(column_names=["is_new", "user_id", "experience"])
     def tweak(self, is_new, user_id, experience):
         if is_new:
@@ -28,14 +51,7 @@ class Experience(Database):
         
         return experience["xp"]
 
-    # check if record exist, soft validator
-    def get_record(self, user_id):
-        try:
-            return next(iter(self._get_values_from_raw_data({user_id: self.raw_data[user_id]})))
-        except KeyError:
-            return None
-
-    # archive Experience
+    # archive Experience, soft lock
     @sql_full_table_validator
     @sql_record_exisits_validator
     def archive(self, user_id):
@@ -44,15 +60,24 @@ class Experience(Database):
         except Exception:
             pass
 
-    # change xp // level // progress for a reset  or  custom_username // offset for info cards
+    # reset xp // level // progress
     @sql_full_table_validator
     @sql_record_exisits_validator(not_archived=True)
-    @sql_update_with_valid_keys(column_names=["xp", "level", "progress", "username", "offset"])
-    def change(self, user_id, **kwargs):
-        self._update(conditions=self._get_conditions(id=user_id), new_value=kwargs, id=user_id)
+    def reset(self, user_id):
+        self._update(conditions=self._get_conditions(id=user_id), new_value={"xp":0, "level":0, "progress":0.0}, id=user_id)
+
+    # return ExperienceInfo tied to user_id
+    def get_user_data(self, user_id):
+        return ExperienceInfo(user_id=user_id).get()
 
     # return Experience
-    def get(self):
+    def get(self, user_id=None):
+        if user_id is not None:
+            try:
+                return next(iter(self._get_values_from_raw_data({user_id: self.raw_data[user_id]}, ommit=["progress", "archived"])))
+            except KeyError:
+                return None     
+
         return self._get_values_from_raw_data(self.raw_data, add_id=True, ommit=["archived"])
 
 

@@ -69,7 +69,7 @@ async def postpone_club_event_24h(interaction:Interaction):
 @bot.tree.command(name="set_maintenance")
 @standard_response(silent=True)
 async def set_maintenance_base_date(interaction:Interaction, month:Literal[tuple(vars.months.keys())], day:int): # type: ignore
-    ''' Set the base date for Maintenance '''
+    ''' Set the Base Date for Maintenance '''
 
     new_date=datetime(year=datetime.now().year, month=vars.months[month], day=day)
 
@@ -250,7 +250,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool=True, wi
     CHANNEL = SERVER.get_channel(channel_ids["leaderboard"])
 
     # get leaderboard info
-    if data := Experience(archived=False, order=["xp-"]).get():
+    if data := ExperienceInfo(extended=True, archived=False, order=["xp-"]).get(multiple=True):
 
         # clear the channel
         await CHANNEL.purge(limit=None)
@@ -298,7 +298,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool=True, wi
 
 @bot.tree.command(name="tweak_xp")
 @standard_response(silent=True)
-async def tweak_xp(interaction: Interaction, member:Member, action:Literal["Add", "Subtract", "Set"]="Add", amount:int=10, comment:Optional[str]=None):
+async def tweak_xp_manually(interaction: Interaction, member:Member, action:Literal["Add", "Subtract", "Set"]="Add", amount:int=10, comment:Optional[str]=None):
     ''' Add / Subtract / Set  XP for User '''
 
     SERVER          = bot.server
@@ -330,14 +330,14 @@ async def reset_xp(interaction: Interaction, member:Member):
     CHANNEL = SERVER.get_channel(channel_ids["points-log"])
 
     USER_EXPERIENCE = bot.user_experience
-    USER_EXPERIENCE.change(user_id=member.id, xp=0, level=0, progress=0.0)
+    USER_EXPERIENCE.reset(user_id=member.id)
 
     await interaction.response.send_message(f"User {member.nick or member.global_name} has been **reseted**!", ephemeral=True)
     await CHANNEL.send(content=f"**{member.nick or member.global_name}** - points reseted! XP: **0**")
 
 @bot.tree.command(name="change_lb")
 @standard_response(silent=True)
-async def tweak_xp(interaction: Interaction, member:Member, username:Optional[str], offset:Optional[bool]):
+async def change_leaderboard(interaction: Interaction, member:Member, username:Optional[str], offset:Optional[bool]):
     ''' Change the Leaderboard properties for User '''
     
     options = {}
@@ -350,7 +350,8 @@ async def tweak_xp(interaction: Interaction, member:Member, username:Optional[st
         options["offset"] = offset
 
     USER_EXPERIENCE = bot.user_experience
-    USER_EXPERIENCE.change(user_id=member.id, **options)
+    if USER_EXPERIENCE.get(user_id=member.id):
+        ExperienceInfo(user_id=member.id).change(**options)
 
     await interaction.response.send_message(f"User {member.nick or member.global_name} leaderboard card has been **changed**!", ephemeral=True)
 
