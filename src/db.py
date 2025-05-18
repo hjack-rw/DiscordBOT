@@ -9,7 +9,7 @@ import sqlite3
 
 
 __all__ = ["sql_full_table_validator", "sql_only_one_validator", "sql_update_with_valid_keys", "sql_record_exisits_validator", "sql_entire_table_init_validator",
-           "permutation", "Filter", "Database"]
+           "sql_create_connection", "permutation", "Filter", "Database"]
 
 
 # Data conversions operations
@@ -135,7 +135,7 @@ def sql_entire_table_init_validator(func):
     def validator(self, *args, **kwargs):
         for kwarg in kwargs:
             if kwarg in ["omitted_columns", "specified_columns"]:
-                raise Exception(f"sqlite3 table error: needs to load all rows for '{self.__name__}'!")
+                raise Exception(f"sqlite3 table error: needs to load all rows for '{self.__name__}'")
         return func(self, *args, **kwargs)
     
     return validator
@@ -168,6 +168,30 @@ def check_type(key, value, type, req_numeric=False):
         raise Exception(f"sqlite3 filter error: {str(error)}")
     
     return True
+
+# Decorators
+############################################################################################################
+
+def sql_create_connection(table):
+    """Create linked table record"""
+
+    def run(func):
+        @functools.wraps(func)
+        def decorator(self, *args, **kwargs):
+            is_new        = kwargs.get("is_new", False)
+            pet_ashwinder = kwargs.pop("pet_ashwinder", False)
+
+            func(self, *args, **kwargs)
+
+            if is_new:
+                column_id = self._get_id_column()
+                try:
+                    table(**{column_id:kwargs[column_id]})._insert(new_record=(pet_ashwinder,), custom_id=kwargs[column_id])
+                except KeyError:
+                    raise Exception(f"sqlite3 table error: needs to create link with '{column_id}' for {self.__name__}")
+
+        return decorator
+    return run
 
 # Clauses
 ############################################################################################################
@@ -359,9 +383,16 @@ class Database():
     def _select(self, table, columns, conditions, order):
         """Command SELECT"""
 
+        join = ""
+
+        # check if the table has been extended
+        if getattr(self, "extended", False):
+            id_column = self._get_id_column()
+            join = f"INNER JOIN {self.origin_table} USING ({id_column})"
+
         # execute command
         try:
-            command = f"SELECT {columns} FROM {table} {conditions} {order};"
+            command = f"SELECT {columns} FROM {table} {join} {conditions} {order};"
             self.cur.execute(command)
         except sqlite3.OperationalError:
             raise Exception(f"sqlite3 SELECT error! faulty command:\n'{command}'")
@@ -459,27 +490,39 @@ class Database():
         
         types_dict.update(types)
 
-        # execute command
-        self.cur.execute(f"PRAGMA table_info({self.table});")       
+        # execute commands
+        self.cur.execute(f"PRAGMA table_info({self.table});")
+        columns = self.cur.fetchall()
 
-        columns = {}
-        for (_, column_name, type, not_null, default, is_pk) in self.cur:
+        # extended the columns with the origin_table
+        if getattr(self, "extended", False):
+            self.cur.execute(f"PRAGMA table_info({self.origin_table});")
+            columns_origin = self.cur.fetchall()
+        else:
+            columns_origin = []
+
+        all_columns = {}
+        for (_, column_name, type, not_null, default, is_pk) in columns + columns_origin:
 
             if "+" in column_name or "-" in column_name:
                 raise Exception(f"sqlite3 table error: '+' / '-' cannot appear in the column name!")
 
+            # skip redefinition if already processed
+            if column_name in all_columns:
+                continue
+
             # keep pk
             if not is_pk:
                 if (specified_columns and column_name not in specified_columns) or (column_name in omitted_columns):
-                    columns[column_name] = None
+                    all_columns[column_name] = None
                     continue
             
-            columns[column_name] = {"is_pk":       bool(is_pk),
-                                    "type":        types_dict.pop(column_name, types_dict[type]),
-                                    "not_null":    bool(not_null),
-                                    "default":     default}
+            all_columns[column_name] = {"is_pk":       bool(is_pk),
+                                        "type":        types_dict.pop(column_name, types_dict[type]),
+                                        "not_null":    bool(not_null),
+                                        "default":     default}
         
-        return columns
+        return all_columns
 
 # SQL I/O
 ############################################################################################################

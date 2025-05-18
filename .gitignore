@@ -4,7 +4,7 @@ requirements.txt
 pre_init.py
 test_db.py
 test_image.py
-test_images/test_1.png
+test_images/leaderboard_test.png
 __pycache__/pre_init.cpython-310.pyc
 src/env
 src/__database__.db
@@ -20,3 +20,4 @@ src/__pycache__/functions.cpython-310.pyc
 src/__pycache__/tasks.cpython-310.pyc
 src/__pycache__/variables.cpython-310.pyc
 src/__pycache__/views.cpython-310.pyc
+__pycache__/main.cpython-310.pyc
