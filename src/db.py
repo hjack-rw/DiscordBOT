@@ -2,14 +2,16 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 import functools
+import inspect
 import io
 import itertools
 import os
+import re
 import sqlite3
 
 
 __all__ = ["sql_full_table_validator", "sql_only_one_validator", "sql_update_with_valid_keys", "sql_record_exisits_validator", "sql_entire_table_init_validator",
-           "permutation", "Filter", "Database"]
+           "sql_create_connection", "permutation", "Filter", "Database"]
 
 
 # Data conversions operations
@@ -59,26 +61,18 @@ class permutation:
 def check_variable(self, variables:list, reverse=False):
     """Check the variables in question if == True"""
 
-    check = False
-
-    for name in variables:
-        try:
-            if check := vars(self)[name]:
-                break
-        except KeyError:
-            continue
-    
-    return not check if reverse else check
+    result = any(getattr(self, name, False) for name in variables)
+    return not result if reverse else result
 
 def sql_full_table_validator(func):
     """Validator if the table was loaded fully"""
 
     @functools.wraps(func)
     def validator(self, *args, **kwargs):
-        if not check_variable(self, variables=["conditions", "is_shortened"]):
+        if not check_variable(self, variables=["conditions", "is_shortened", "extended"]):
             return func(self, *args, **kwargs)
         
-        raise Exception(f"sqlite3 table error: can only '{func.__name__}' with fully loaded table")
+        raise Exception(f"sqlite3 table error: can only '{func.__name__}' with fully loaded table that is not extended")
     
     return validator
 
@@ -87,7 +81,7 @@ def sql_only_one_validator(func):
 
     @functools.wraps(func)
     def validator(self, *args, **kwargs):
-        if len(self.raw_data) < 2 and not check_variable(self, variables=["is_shortened"]):
+        if len(self.raw_data) == 1 and not check_variable(self, variables=["is_shortened"]):
             return func(self, *args, **kwargs)
         
         raise Exception(f"sqlite3 table error: can only '{func.__name__}' with one record loaded")
@@ -135,7 +129,7 @@ def sql_entire_table_init_validator(func):
     def validator(self, *args, **kwargs):
         for kwarg in kwargs:
             if kwarg in ["omitted_columns", "specified_columns"]:
-                raise Exception(f"sqlite3 table error: needs to load all rows for '{self.__name__}'!")
+                raise Exception(f"sqlite3 table error: needs to load all rows for '{self.__name__}'")
         return func(self, *args, **kwargs)
     
     return validator
@@ -169,6 +163,41 @@ def check_type(key, value, type, req_numeric=False):
     
     return True
 
+# Decorators
+############################################################################################################
+
+def sql_create_connection(func):
+    """Create linked table record"""
+
+    @functools.wraps(func)
+    def decorator(self, *args, **kwargs):
+        is_new = kwargs.get("is_new", False)
+        result = func(self, *args, **kwargs)
+
+        # if the main table is new
+        if is_new:
+            
+            # check if linked record already exsits
+            column_id = self._get_id_column()
+            if self.get_joined_table(**{column_id:kwargs[column_id]}) is None:
+
+                # create a new kwargs with the gotten key-value pairs
+                needed_kwargs = {param.name: kwargs.get(param.name) for param in inspect.signature(self.joined_table.add).parameters.values() if param.name != "self"}
+
+                try:
+                    missing_params = [key for key,value in needed_kwargs.items() if value is None]
+
+                    # not enough parameters provided
+                    if missing_params:
+                        raise Exception("missing required parameters: " + ", ".join(missing_params))
+
+                    self.joined_table().add(**needed_kwargs)
+                except Exception as error:
+                    raise Exception(f"sqlite3 table error: failed to create a link with '{self._get_joined_table_name()}' for '{self.__class__.__name__}'\n Error:{str(error)}")
+
+        return result
+    return decorator
+
 # Clauses
 ############################################################################################################
 
@@ -178,7 +207,7 @@ def apply_selected_columns(skip_when_default=False):
     def run(func):
         def apply(self, *args, **kwargs):
             
-            if self.is_shortened:
+            if getattr(self, "is_shortened", False) or getattr(self, "extended", False):
                 kwargs["columns"] = ", ".join(self._get_imported_columns()).upper()
             else:
                 kwargs["columns"] = "*"
@@ -191,11 +220,11 @@ def apply_selected_columns(skip_when_default=False):
             if custom_id:
                 kwargs["custom_id"] = self._return_value(custom_id, type(custom_id))
                 
-                kwargs["columns"] = filter(lambda item: not item[1]["default"], self.columns.items())
+                kwargs["columns"] = filter(lambda item: isinstance(item[1], dict) and not item[1]["default"], self.columns.items())
             
             # else autoiterate
             else:
-                kwargs["columns"] = filter(lambda item: not item[1]["default"] and not item[1]["is_pk"], self.columns.items())
+                kwargs["columns"] = filter(lambda item: isinstance(item[1], dict) and not item[1]["default"] and not item[1]["is_pk"], self.columns.items())
             return func(self, *args, **kwargs)
 
         if skip_when_default:
@@ -210,24 +239,31 @@ class Filter(Enum):
     BOOL_F   = "* = 0"
     NULL     = "* IS NULL" 
 
-def apply_conditions(func):
+def apply_conditions(is_select=False):
     """Apply correct formatting for conditions"""
     
-    def apply(self, *args, **kwargs):
-        conditions = kwargs.pop("conditions", self.conditions)
+    def run(func):
+        def apply(self, *args, **kwargs):
+            conditions = kwargs.pop("conditions", self.conditions)
 
-        if conditions and (Filter.NONE not in conditions):
-            clause = " AND ".join([f"{condition}" for condition in conditions])
-
-            if "*" in clause:
-                raise Exception(f"sqlite3 error applying conditions:\n'{clause}'")
+            if conditions and (Filter.NONE not in conditions):
+                extended_columns = [column.upper() for column in self._get_extended_columns()]
                 
-            kwargs["conditions"] = "WHERE " + clause
-        else:
-            kwargs["conditions"] = ""
-        return func(self, *args, **kwargs)
-    
-    return apply
+                if is_select:
+                    clause = " AND ".join(conditions)
+                else:
+                    clause = " AND ".join([condition for condition in conditions if all(not re.search(rf"\b{re.escape(col)}\b", condition) for col in extended_columns)])
+
+                if "*" in clause:
+                    raise Exception(f"sqlite3 error applying conditions:\n'{clause}'")
+                    
+                kwargs["conditions"] = "WHERE " + clause
+            else:
+                kwargs["conditions"] = ""
+            return func(self, *args, **kwargs)
+        
+        return apply
+    return run
 
 def apply_order(func):
     """Apply correct formatting order"""
@@ -274,7 +310,7 @@ def get_update_clause(self, new_value, id=None):
                 raise Exception(f"{column} is not a column name!")
 
             # get the old value string
-            _, value_type, not_null, _  = self.columns[column].values()
+            _, value_type, not_null, _, _  = self.columns[column].values()
                     
             # get the old value
             old_value = self._get_value(record[column_id], self._get_type_from_column(value_type))
@@ -282,14 +318,14 @@ def get_update_clause(self, new_value, id=None):
             # protect from mismatched datatypes (except None)
             if not_null and value is not None:
                 if type(old_value) != type(value):
-                    raise Exception(f"fatatype mismatch for column '{column}'")
+                    raise Exception(f"datatype mismatch for column '{column}'")
                 if isinstance(old_value, permutation) and not value.check():
                     raise Exception(f"invalid permutation object for column '{column}'")
 
             # convert to db value
             change = self._return_value(value, type(value))
         
-            update_clause.append(f"{column} = {change}")
+            update_clause.append(f"{column.upper()} = {change}")
 
             record[column_id] = change
         return ", ".join(update_clause), id, record
@@ -354,21 +390,28 @@ class Database():
 ############################################################################################################
 
     @apply_selected_columns()
-    @apply_conditions
+    @apply_conditions(is_select=True)
     @apply_order
     def _select(self, table, columns, conditions, order):
         """Command SELECT"""
 
+        join = ""
+
+        # check if the table has been extended
+        if getattr(self, "extended", False):
+            id_column = self._get_id_column()
+            join = f"INNER JOIN {self._get_joined_table_name()} USING ({id_column})"
+
         # execute command
         try:
-            command = f"SELECT {columns} FROM {table} {conditions} {order};"
+            command = f"SELECT {columns} FROM {table} {join} {conditions} {order};"
             self.cur.execute(command)
         except sqlite3.OperationalError:
             raise Exception(f"sqlite3 SELECT error! faulty command:\n'{command}'")
         
         return {row[0]:tuple(row[1:]) for row in self.cur}
 
-    @apply_conditions
+    @apply_conditions()
     def _update(self, conditions, new_value, id=None):
         """Command UPDATE"""
 
@@ -392,15 +435,19 @@ class Database():
         # insert the new record, but add in default values
         idx, new_record_with_defaults = 0, []
         for column, meta in self.columns.items():
+            if not isinstance(meta, dict):
+                continue
+            
             if meta["is_pk"]:
                 continue
             
             default = meta["default"]
+            new_record_with_defaults.append(None if default == 'NULL' else default if default is not None else new_record[idx])
+
             if default is not None:
-                new_record_with_defaults.append(None if default == 'NULL' else default)
-            else:
-                new_record_with_defaults.append(new_record[idx])
-                idx += 1
+                continue
+
+            idx += 1
 
         # protect from creating duplicates
         if new_record_with_defaults in self.raw_data.values():
@@ -427,7 +474,7 @@ class Database():
 
         self.raw_data[id] = tuple(new_record_with_defaults)
 
-    @apply_conditions
+    @apply_conditions()
     def _delete(self, conditions, id):
         """Command DELETE"""
 
@@ -459,27 +506,40 @@ class Database():
         
         types_dict.update(types)
 
-        # execute command
-        self.cur.execute(f"PRAGMA table_info({self.table});")       
+        # execute commands
+        self.cur.execute(f"PRAGMA table_info({self.table});")
+        columns = self.cur.fetchall()
 
-        columns = {}
-        for (_, column_name, type, not_null, default, is_pk) in self.cur:
+        # extended the columns with the joined_table
+        if getattr(self, "extended", False):
+            self.cur.execute(f"PRAGMA table_info({self._get_joined_table_name()});")
+            columns_origin = self.cur.fetchall()
+        else:
+            columns_origin = []
+
+        all_columns = {}
+        for idx, (_, column_name, type, not_null, default, is_pk) in enumerate(columns + columns_origin):
 
             if "+" in column_name or "-" in column_name:
                 raise Exception(f"sqlite3 table error: '+' / '-' cannot appear in the column name!")
 
+            # skip redefinition if already processed
+            if column_name in all_columns:
+                continue
+
             # keep pk
             if not is_pk:
                 if (specified_columns and column_name not in specified_columns) or (column_name in omitted_columns):
-                    columns[column_name] = None
+                    all_columns[column_name] = True if idx >= len(columns) else None
                     continue
             
-            columns[column_name] = {"is_pk":       bool(is_pk),
-                                    "type":        types_dict.pop(column_name, types_dict[type]),
-                                    "not_null":    bool(not_null),
-                                    "default":     default}
+            all_columns[column_name] = {"is_pk":       bool(is_pk),
+                                        "type":        types_dict.pop(column_name, types_dict[type]),
+                                        "not_null":    bool(not_null),
+                                        "default":     default,
+                                        "extended":    idx >= len(columns)}
         
-        return columns
+        return all_columns
 
 # SQL I/O
 ############################################################################################################
@@ -524,6 +584,14 @@ class Database():
 # Database structure
 ############################################################################################################
 
+    @classmethod
+    def get_joined_table(cls, get_kwargs=None, **kwargs):
+        get_kwargs = get_kwargs or {}
+        return cls.joined_table(**kwargs).get(**get_kwargs)
+    
+    def get_one_column(self, column):
+        return next(iter(self._get_specific_value_from_raw_data(self.raw_data, column)), None)
+
     def _setup_table(self, types={}, **kwargs):
         """Setup filters and sorting of the table"""
 
@@ -537,7 +605,11 @@ class Database():
         
         
         columns = self._get_columns(types, omitted_columns, specified_columns)
-        self.is_shortened, allowed_filters = not all((columns.values())), list(filter(columns.get, columns))
+        
+        if not all((columns.values())):
+            self.is_shortened = True
+
+        allowed_filters = self._get_imported_columns(columns)
 
 
         # set conditions based on the filters
@@ -629,27 +701,52 @@ class Database():
         # columns dict {"column_name":...}
         return columns
 
-    def _get_values_from_raw_data(self, raw, add_id=False, ommit=[]):
+    def _get_values_from_raw_data(self, raw, add_id=False, omitted=[], specified=[]):
         """ Return the table records in a list of dict """
         
+        # protect from excluding specified
+        if omitted in specified:
+            raise Exception(f"sqlite3 filter error: 'specified' and 'omitted' can't overlap!")
+
         return_list = []
         for idx, instance in raw.items():
             temp_dict = {}
             
             for idx_column, column in enumerate(self._get_imported_columns(), -1):
-                is_pk , value_type, _, _  = self.columns[column].values()
+                is_pk , value_type, _, _, _  = self.columns[column].values()
                 
                 if is_pk:
                     if add_id:
                         temp_dict[column] = idx
                     continue
 
-                if column in ommit:
+                if (specified and column not in specified) or (column in omitted):
                     continue
 
                 temp_dict[column] = self._get_value(instance[idx_column], self._get_type_from_column(value_type))
             
             return_list.append(temp_dict)
+        
+        return return_list
+    
+    def _get_specific_value_from_raw_data(self, raw, specified):
+        """ Return the specific value from the table records """
+        
+        columns = self._get_imported_columns()
+
+        # protect from returning non-existent
+        if specified not in columns:
+            raise Exception(f"sqlite3 filter error: '{specified}' not in columns!")
+        else:
+            idx_column = columns.index(specified) - 1
+            value_type = self.columns[specified]["type"]
+            is_pk      = self.columns[specified]["is_pk"]
+
+        return_list = []
+        for idx, instance in raw.items():
+            value = idx if is_pk else self._get_value(instance[idx_column], self._get_type_from_column(value_type))
+            
+            return_list.append(value)
         
         return return_list
 
@@ -660,15 +757,23 @@ class Database():
             return next(iter(self.raw_data.values()))[value_type]
         return value_type
 
-    # TODO! Only one ID supported at the time, the first Primary Key
+    #NOTE! only one ID supported at the time, the first Primary Key
     def _get_id_column(self):
         return next(filter(lambda item: item[1]["is_pk"], self.columns.items()))[0]
 
-    def _get_imported_columns(self):
-        return filter(self.columns.get, self.columns)
+    def _get_imported_columns(self, columns=None):
+        return [key for key,value in getattr(self, "columns", columns).items() if isinstance(value, dict)]
+    
+    def _get_extended_columns(self):
+        return [key for key,value in self.columns.items() if isinstance(value, dict) and value["extended"]]
 
     def _get_last_id(self):
         return int(next(iter(self._select(table="sqlite_sequence", conditions=["NAME" + Filter.STANDARD.value.replace("*", f"'{self.table}'")]).values()))[0])
     
+    # if with @sql_full_table_validator but need id
     def _get_conditions(self, id):
         return [self._get_id_column().upper() + Filter.STANDARD.value.replace("*", str(id))]
+    
+    @classmethod
+    def _get_joined_table_name(cls):
+        return cls.joined_table.__name__.lower()

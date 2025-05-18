@@ -62,6 +62,12 @@ houses = {"gryffindor": {"emoji": "<:gryffindor:1255656359190462484> Gryffindor"
           "slytherin" : {"emoji": "<:slytherin:1255656364244729856> Slytherin",   "crest": "https://static.wikia.nocookie.net/pottermore/images/4/45/Slytherin_Crest.png/revision/latest?cb=20111112232353"},
           "BOTS"      : {"emoji": "",                                             "crest": ""},}
 
+def houses_names_list(is_short=True):
+    if is_short:
+        return list(houses)[:-1]
+    else:
+        return list(houses)
+
 housecup_disciplines_names = {0: "Best Partners",
                               1: "Dance Club",
                               2: "Top Wizard",
@@ -108,6 +114,87 @@ def notification_dict(is_short=False):
     
         return short_dict
     return full_dict
+
+# Complete list at:
+# https://harrypotter.fandom.com/wiki/List_of_creatures
+pets = {"0":  "Flobberworm",                 #100 xp to finish
+        "1":  "Manticore",                   #255
+        "2a": "Cornish Pixie",               #475
+        "2b": "Lobalug",
+        "3":  "Gnome",                       #770
+        "4":  "Bowtruckle",                  #1150
+        "5":  "Puffskein",                   #1625
+        "6a": "Knarl",                       #2205
+        "6b": "Jellyfish",
+        "7":  "Diricawl",                    #2900
+        "8":  "Fwooper",                     #3720
+        "9":  "Occamy",                      #4675
+        "10a":"Kneazle",                     #5775
+        "10b":"Crup",
+        "11a":"Jarvey",                      #7030
+        "11b":"Murtlap",
+        "12": "Niffler",                     #8450
+        "13": "Mooncalf",                    #10045
+        "14": "Qilin",                       #11825
+        "15a":"Tebo",                        #13800
+        '15b':"Grindylow",
+        "16": "Demiguise",                   #15980
+        "17": "Yeti",                        #18375
+        "18a":"Matagot",                     #20995
+        "18b":"Swooping Evil",
+        "19a":"Hinkypunk",                   #23850
+        "19b":"Kappa",
+        "20a":"Sphinx",                      #26950
+        "20b":"Ashwinder",
+        "21": "Golden Snidget",              #30305
+        "22": "Augurey",                     #33925
+        "23": "Thunderbird",                 #37820
+        "24": "Fire Crab",                   #42000
+        "25a":"Blast-Ended Skrewt",          #46475
+        "25b":"Dugbog",
+        "26": "Erumpent",                    #51255
+        "27a":"Nundu",                       #56350
+        "27b":"Graphorn",                       
+        "28a":"Griffin",                     #61770
+        "28b":"Kelpie",       
+        "29": "Hippogriff",                  #67525
+        "30a":"Abraxan",                     #73625
+        "30b":"Thestral",                        
+        "31": "Unicorn",                     #80080
+        "32a":"Chimaera",                    #86900
+        "32b":"Giant Squid",                 
+        "33": "Manticore Mother",            #94195
+        "34a":"Zouwu",                       #101775
+        "34b":"Three-Headed Dog",
+        "35": "Phoenix",                     #109750
+        "36": "Basilisk",                    #118130
+        "37a":"Runespoor",                   #126925
+        "37b":"Horned Serpent",
+        "38": "Firedrake",                   #136145
+        "39": "Wyvern",                      #145800
+        "40a":"Chinese Fireball Dragon ",    # RED
+        "40b":"Peruvian Vipertooth Dragon",  # ORANGE
+        "40c":"Norwegian Ridgeback Dragon",  # YELLOW
+        "40d":"Common Welsh Green Dragon",   # GREEN
+        "40e":"Swedish Short-Snout Dragon",  # BLUE
+        "40f":"Antipodean Opaleye Dragon",   # PURPLE
+        "40g":"Ukrainian Ironbelly Dragon",  # WHITE
+        "40h":"Hungarian Horntail Dragon",   # BLACK
+        }
+
+form_answers = ["🤺 Solo Dueling",
+                "🤺🤺 Duo Dueling",
+                "😎🤺 Casual Matches",
+                "🧙🌳 Club Adventures",
+                "🧙🧙 Club Events (Dance / Quiz / Duel Tournament)",
+                "📚 Classes",
+                "🧹 Quidditch",
+                "🌳 Solo Forbidden Forest",
+                "🌳🌳 Team Forbidden Forest (OTP / Gold / Echos)",
+                "🌹 Verdant Victories",
+                "🌱 Herbology",
+                "🕺💃 Dancing",
+                "📸 Photoshoots",]
 
 wait_for = 2 # seconds
 discord_token = os.getenv("DISCORD_TOKEN")

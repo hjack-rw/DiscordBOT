@@ -8,9 +8,6 @@ from datetime import datetime, time, timedelta
 from discord.ext import tasks
 
 
-__all__ = ["morning_reminder", "weekly_cards_reminder", "housecup_reminder", "club_events_reminder", "game_midnight_reminder", "midnight_reminder", "create_a_task"] 
-
-
 # SETTINGS
 # for testing
 # vars.test_bot["test_tasks"] = True # overwrite if needed

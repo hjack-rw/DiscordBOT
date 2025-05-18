@@ -4,7 +4,10 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! remove past bot notifications on midnight (if exist)
+#TODO! make get_csv universal
+
+#TODO! remove past bot notifications on midnight (if exist), but not SNAPE
+# - also fix DELETE SNAPE!
 
 #TODO! rework the sorthing-hat channel:
 # ~house picking system and change nickname~
@@ -38,6 +41,7 @@ if __name__ == '__main__':
 # automatic add to a paste service
 
 #TODO! db changes:
+# - insert without defaults if provided
 # - more backups?
-# - update multiple, instead of just one
-# - multiple primary keys
+# - update multiple, instead of just one?
+# - multiple primary keys?
