@@ -1,6 +1,5 @@
 import src.variables as vars
 
-from math import sqrt
 from datetime import datetime, timedelta
 from functools import reduce
 from PIL import Image, ImageFont, ImageDraw, ImageFilter
@@ -18,6 +17,7 @@ import requests
 session = requests.Session()
 
 from discord.app_commands.errors import CommandInvokeError
+from discord.errors import NotFound
 from discord.embeds import Embed
 from discord.enums import EntityType, PrivacyLevel
 from discord.file import File
@@ -65,27 +65,69 @@ class CustomHousecup:
 
 # Complete list at:
 # https://harrypotter.fandom.com/wiki/List_of_creatures
-pets = {0:  "Flobberworm",   #100 xp to finish
-        1:  "Cornish Pixie", #255
-        2:  "Bowtruckle",    #475
-        3:  "Puffskein",     #770
-        4:  "Diricawl",      #1150
-        5:  "Kneazle",       #1625
-        6:  "Mooncalf",      #2205
-        7:  "Niffler",       #2900
-        8:  "Demiguise",     #3720
-        9:  "Yeti",          #4675
-        10: "Thunderbird",   #5775
-        11: "Sphinx",        #7030
-        12: "Erumpent",      #8450
-        13: "Graphorn",      #10045
-        14: "Hippogriff",    #11825
-        15: "Kelpie",        #13800
-        16: "Unicorn",       #15980
-        17: "Zouwu",         #18375
-        18: "Basilisk",      #20995
-        19: "Phoenix",       #23850
-        20: "Dragon",        #26950
+pets = {"0":  "Flobberworm",                 #100 xp to finish
+        "1":  "Manticore",                   #255
+        "2a": "Cornish Pixie",               #475
+        "2b": "Lobalug",
+        "3":  "Gnome",                       #770
+        "4":  "Bowtruckle",                  #1150
+        "5":  "Puffskein",                   #1625
+        "6a": "Knarl",                       #2205
+        "6b": "Jellyfish",
+        "7":  "Diricawl",                    #2900
+        "8":  "Fwooper",                     #3720
+        "9":  "Occamy",                      #4675
+        "10a":"Kneazle",                     #5775
+        "10b":"Crup",
+        "11a":"Jarvey",                      #7030
+        "11b":"Murtlap",
+        "12": "Niffler",                     #8450
+        "13": "Mooncalf",                    #10045
+        "14": "Qilin",                       #11825
+        "15a":"Tebo",                        #13800
+        '15b':"Grindylow",
+        "16": "Demiguise",                   #15980
+        "17": "Yeti",                        #18375
+        "18a":"Matagot",                     #20995
+        "18b":"Swooping Evil",
+        "19a":"Hinkypunk",                   #23850
+        "19b":"Kappa",
+        "20a":"Sphinx",                      #26950
+        "20b":"Ashwinder",
+        "21": "Golden Snidget",              #30305
+        "22": "Augurey",                     #33925
+        "23": "Thunderbird",                 #37820
+        "24": "Fire Crab",                   #42000
+        "25a":"Blast-Ended Skrewt",          #46475
+        "25b":"Dugbog",
+        "26": "Erumpent",                    #51255
+        "27a":"Nundu",                       #56350
+        "27b":"Graphorn",                       
+        "28a":"Griffin",                     #61770
+        "28b":"Kelpie",       
+        "29": "Hippogriff",                  #67525
+        "30a":"Abraxan",                     #73625
+        "30b":"Thestral",                        
+        "31": "Unicorn",                     #80080
+        "32a":"Chimaera",                    #86900
+        "32b":"Giant Squid",                 
+        "33": "Manticore Mother",            #94195
+        "34a":"Zouwu",                       #101775
+        "34b":"Three-Headed Dog",
+        "35": "Phoenix",                     #109750
+        "36": "Basilisk",                    #118130
+        "37a":"Runespoor",                   #126925
+        "37b":"Horned Serpent",
+        "38": "Firedrake",                   #136145
+        "39": "Wyvern",                      #145800
+        "40a":"Chinese Fireball Dragon ",    # RED
+        "40b":"Peruvian Vipertooth Dragon",  # ORANGE
+        "40c":"Norwegian Ridgeback Dragon",  # YELLOW
+        "40d":"Common Welsh Green Dragon",   # GREEN
+        "40e":"Swedish Short-Snout Dragon",  # BLUE
+        "40f":"Antipodean Opaleye Dragon",   # PURPLE
+        "40g":"Ukrainian Ironbelly Dragon",  # WHITE
+        "40h":"Hungarian Horntail Dragon",   # BLACK
         }
 
 form_answers = ["🤺 Solo Dueling",
@@ -128,6 +170,23 @@ def standard_response(silent: bool=False):
         
         return response
     return run
+
+
+def disable_after(func):
+    @functools.wraps(func)
+    async def decorator(self, interaction:Interaction, *args, **kwargs):
+        await func(self, interaction, *args, **kwargs)
+        
+        self.dropdown.disabled= True
+        
+        try:
+            await interaction.message.edit(view=self)
+        except NotFound:
+            pass
+        
+        await interaction.response.defer()
+        self.stop()
+    return decorator
 
 
 async def wait_till_posted(channel, idx):
@@ -267,7 +326,6 @@ def get_csv(url):
     response = requests.get(url)
     content  = response.content.decode('utf-8').replace("\ufeff", "").splitlines()
 
-    # TODO! make it universal
     try:
         return [{key:int(value) for key,value in row.items() if key != "_"} for row in csv.DictReader(f=content[1:], fieldnames=["_", "_", "user_id", "xp", "_", "_", "_", "_"])]
     except:
@@ -307,14 +365,33 @@ def get_level_and_progress(xp_total):
     return level, round(progress, 2)
 
 
-def get_animal_rank(level):
-    max_level = len(pets) - 1
+def get_animal_rank(user, level=None):
+    user_level = user.get("level", level) 
+
+    # get max level ignoring the suffixes
+    max_level = max(int("".join(filter(str.isdigit, level))) for level in pets)
 
     # limit the levels
-    if level > max_level:
-        level = max_level
+    if user_level > max_level:
+        user_level = max_level
     
-    return pets[level]
+    # find suffix per level rules
+    suffix_rules = {
+        (2, 6, 11, 15, 19, 25, 28, 32, 37,): lambda: "b" if user["pet_from_sea"] else "a",
+        (10, 18, 27, 34,):                   lambda: "b" if user["pet_dog"] else "a",
+        (20,):                               lambda: "b" if user["pet_ashwinder"] else "a",
+        (30,):                               lambda: "b" if user["pet_thestral"] else "a",
+        (40,):                               lambda: {1: "b", 2: "c", 3: "d", 4: "e", 5: "f", 6: "g", 7:"h"}.get(user["favourite_color"], "a"),
+    }
+
+    suffix = ""
+    for levels, rule in suffix_rules.items():
+        if user_level in levels:
+            suffix = rule()
+            break
+
+    # add suffix
+    return pets.get(f"{user_level}{suffix}", "unknown")
 
 
 def get_level_change(previous_level, current_level):
@@ -336,6 +413,37 @@ def get_member_id_by_nick(server, nick):
         return [member.id for member in server.members if member.nick == nick][0]
     except IndexError:
         return None
+
+
+def get_leaderboard_static():
+    
+    # the basic template
+    background = Image.open(vars.absolute_path + "image_module/leaderboard_template.png")
+
+    # the profile border
+    profile_border = Image.open(vars.absolute_path + "image_module/leaderboard_frogcard_template.png")
+    
+    # the full progress bar
+    full_bar = Image.open(vars.absolute_path + f"image_module/leaderboard_bar.png")
+    
+    # the mask for the begining of the bar
+    bar_mask = Image.new(mode="L", size=full_bar.size, color=255)
+    draw = ImageDraw.Draw(bar_mask)
+    _, y = full_bar.size
+    draw.polygon(check_shape(shape=[(0, 0), (0, y), (91, y), (91, 0)]), fill=0)
+
+    # the progress bar marker
+    marker = Image.open(vars.absolute_path + f"image_module/leaderboard_bar_frog.png")
+
+    # the fonts
+    fonts = {"MAGIC_88": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=88),
+             "MAGIC_45": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=45),
+             "MAGIC_42": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=42),
+             "MAGIC_35": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=35),
+             "RUNES_88": ImageFont.truetype(font=(vars.absolute_path + "image_module/RUNES.ttf"), size=88),
+             "RUNES_72": ImageFont.truetype(font=(vars.absolute_path + "image_module/RUNES.ttf"), size=72),}
+    
+    return (background, profile_border, full_bar, bar_mask, marker, fonts)
 
 ############################################################################################################
 
@@ -412,7 +520,7 @@ def draw_infocard(new_user, all_members_count):
     return File(bytes, filename="card.png")
 
 
-def draw_leaderboard(user, rank, house, level, progress, static):
+def draw_leaderboard(user, rank, house, static, is_bytes=False):
     background, profile_border, full_bar, bar_mask, marker, fonts = static
     background = copy.deepcopy(background)
 
@@ -467,13 +575,21 @@ def draw_leaderboard(user, rank, house, level, progress, static):
         background.alpha_composite(im=house_logo, dest=(388, 194))
 
     # progress details (pet name and level)    
-    draw.text(xy=(911, 170), text=f"Pet: {get_animal_rank(level)}", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
-    draw.text(xy=(911, 227), text=f"Level: {level}", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
+    pet = get_animal_rank(user)
+
+    if len(pet) > 20:
+        pet_font = fonts["MAGIC_35"]
+    else:
+        pet_font = fonts["MAGIC_45"]
+    
+    draw.text(xy=(901, 170), text=f"Pet: ", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
+    draw.text(xy=(961, 169), text=pet, fill=(235,235,235), font=pet_font, align="left", anchor='lm')
+    draw.text(xy=(901, 227), text=f"Level: {user['level']}", fill=(235,235,235), font=fonts["MAGIC_45"], align="left", anchor='lm')
 
 
     ## progress bar ##
     # limit progress
-    percent = progress
+    percent = user["progress"]
 
     if percent < 0.05:
         percent = 0.05
@@ -495,7 +611,7 @@ def draw_leaderboard(user, rank, house, level, progress, static):
     background.alpha_composite(im=marker, dest=get_position(center=(95, 322), image_center=marker.size, offset=(int(round(percent * 1480)-85), 0) if percent >= 0.059 else (0, 0)))
 
     # add percentage
-    draw.text(xy=(x-175 if percent < 0.5 else 175, 322), text=f"{round(progress*100, 2)}%", fill=(235,235,235), font=fonts["MAGIC_42"], align="center", anchor='mm')
+    draw.text(xy=(x-175 if percent < 0.5 else 175, 322), text=f"{round(user['progress']*100, 2)}%", fill=(235,235,235), font=fonts["MAGIC_42"], align="center", anchor='mm')
     
     
     ## save and return file ##
@@ -503,11 +619,13 @@ def draw_leaderboard(user, rank, house, level, progress, static):
     background.save(bytes, format="PNG")
     bytes.seek(0)
     
+    if is_bytes:
+        return bytes
     return File(bytes, filename=f"leaderboard_{user['user_id']}.png")
 
 ############################################################################################################
 
-def parse_xp_amount(func):  
+def parse_xp_amount(func):
     @functools.wraps(func)
     async def parse(self, *args, **kwargs):
         server = kwargs.pop("server")
@@ -519,8 +637,8 @@ def parse_xp_amount(func):
             raise Exception("parse error: 'amount' cannot be zero or negative")
 
         user_id = kwargs.get("user_id", member.id)
-        record = self.get_record(user_id=user_id)
-        is_new = not bool(record)
+        record  = self.get_dict(user_id=user_id)
+        is_new  = not bool(record)
 
         # modify existing record
         if record:
@@ -548,7 +666,11 @@ def parse_xp_amount(func):
         current_level, progress = get_level_and_progress(current_xp)
         kwargs["experience"] = {"xp": current_xp, "level": current_level, "progress": progress}
 
-        if not is_new:
+        # check roles to assign Sphinx or Ashwinder pet accordingly
+        if is_new:
+            roles = set([role.name for role in getattr(member, "roles", [])])
+            kwargs["pet_ashwinder"] = not bool(roles & {"gop", "guest"})
+        else:
             kwargs["experience"]["archived"] = False
 
         current_xp = func(self, *args, **kwargs)
@@ -557,7 +679,8 @@ def parse_xp_amount(func):
         if server:
             level_ups = get_level_change(previous_level, current_level)
             if level_ups:
-                await print_notification(server, event_name="Level Up", variables=[member, level_ups], is_task=False)
+                user_data = self.get_joined_table(user_id=member.id)
+                await print_notification(server, event_name="Level Up", variables=[member, user_data, level_ups], is_task=False)
 
         return current_xp
     return parse
@@ -565,31 +688,7 @@ def parse_xp_amount(func):
 
 def create_leaderboard(server, data, custom_housecup):
     ## get static files for leaderboard ##
-    # the basic template
-    background = Image.open(vars.absolute_path + "image_module/leaderboard_template.png")
-
-    # the profile border
-    profile_border = Image.open(vars.absolute_path + "image_module/leaderboard_frogcard_template.png")
-    
-    # the full progress bar
-    full_bar = Image.open(vars.absolute_path + f"image_module/leaderboard_bar.png")
-    
-    # the mask for the begining of the bar
-    bar_mask = Image.new(mode="L", size=full_bar.size, color=255)
-    draw = ImageDraw.Draw(bar_mask)
-    _, y = full_bar.size
-    draw.polygon(check_shape(shape=[(0, 0), (0, y), (91, y), (91, 0)]), fill=0)
-
-    # the progress bar marker
-    marker = Image.open(vars.absolute_path + f"image_module/leaderboard_bar_frog.png")
-
-    # the fonts
-    fonts = {"MAGIC_88": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=88),
-             "MAGIC_45": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=45),
-             "MAGIC_42": ImageFont.truetype(font=(vars.absolute_path + "image_module/MAGIC.ttf"), size=42),
-             "RUNES_88": ImageFont.truetype(font=(vars.absolute_path + "image_module/RUNES.ttf"), size=88),
-             "RUNES_72": ImageFont.truetype(font=(vars.absolute_path + "image_module/RUNES.ttf"), size=72),}
-
+    static = get_leaderboard_static()
 
     ## create loop for each user ##
     rank, rank_xp, leaderboard = 0, 0, []
@@ -603,10 +702,6 @@ def create_leaderboard(server, data, custom_housecup):
             if user["xp"] != rank_xp:
                 rank += 1
                 rank_xp = user["xp"]
-
-        # get member level and progress from Experience
-        level = user["level"]
-        progress = user["progress"]
 
         house = None
         roles = [role.name for role in member.roles]
@@ -638,7 +733,7 @@ def create_leaderboard(server, data, custom_housecup):
         
         user["avatar"] = get_avatar(user=member, none=True)
 
-        file = draw_leaderboard(user, rank, house, level, progress, static=(background, profile_border, full_bar, bar_mask, marker, fonts))
+        file = draw_leaderboard(user, rank, house, static)
         leaderboard.append((user["user_id"], color, file))
 
     return leaderboard, custom_housecup
@@ -897,14 +992,14 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
         embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=vars.system_embed_color)
 
     elif event_name == "Level Up":
-        user, level_ups = variables
+        user, user_data, level_ups = variables
 
         channel = server.get_channel(channel_ids["the-3-broomsticks"])
 
         event_info = {"mention":    f"Mention: <@{user.id}>",
                       "title":      f"Level {level_ups[-1]}!",
-                      "description":f"**{user.nick or user.global_name}** just caught a **{get_animal_rank(level=level_ups[0])}** <:hugs:1256225688403447888>\n",
-                      "extra_fields":[f"Wait! There is more... they also caught a {get_animal_rank(level)}\n" for level in level_ups[1:]],
+                      "description":f"**{user.nick or user.global_name}** just caught a **{get_animal_rank(user=user_data, level=level_ups[0])}** <:hugs:1256225688403447888>\n",
+                      "extra_fields":[f"Wait! There is more... they also caught a {get_animal_rank(user=user_data, level=level)}\n" for level in level_ups[1:]],
                       "footer":   '''"One can never have enough pets!"''',
                       "account":     "Prof. Dumbledore",}
 

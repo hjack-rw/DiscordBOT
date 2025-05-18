@@ -4,23 +4,22 @@ from src.functions import parse_xp_amount, parse_portkey_data
 import copy
 
 
-__all__ = ["Experience", "ExtraVariable", "Portkeys", "WelcomeMessages"]
-
-
 # Tables
 ############################################################################################################
 
 class Experience(Database):
+    table = "experience"
+
     def __init__(self, **kwargs):
-        self.table    = "experience"
-        self.columns  = self._setup_table(types={"offset":"bool", "archived":"bool"}, **kwargs)
+        self.columns  = self._setup_table(types={"archived":"bool"}, **kwargs)
         self.raw_data = self._select(self.table)
     
     # add / subtract / set Experience
     @sql_full_table_validator
     @parse_xp_amount
-    @sql_update_with_valid_keys(column_names=["is_new", "user_id", "experience"])
-    def tweak(self, is_new, user_id, experience):
+    @sql_create_connection
+    @sql_update_with_valid_keys(column_names=["pet_ashwinder", "is_new", "user_id", "experience"])
+    def tweak(self, is_new, user_id, experience, **kwargs):
         if is_new:
             self._insert(new_record=tuple(experience.values()), custom_id=user_id)
         else:
@@ -28,14 +27,7 @@ class Experience(Database):
         
         return experience["xp"]
 
-    # check if record exist, soft validator
-    def get_record(self, user_id):
-        try:
-            return next(iter(self._get_values_from_raw_data({user_id: self.raw_data[user_id]})))
-        except KeyError:
-            return None
-
-    # archive Experience
+    # archive Experience - soft lock
     @sql_full_table_validator
     @sql_record_exisits_validator
     def archive(self, user_id):
@@ -44,23 +36,60 @@ class Experience(Database):
         except Exception:
             pass
 
-    # change xp // level // progress for a reset  or  custom_username // offset for info cards
+    # reset Experience
     @sql_full_table_validator
     @sql_record_exisits_validator(not_archived=True)
-    @sql_update_with_valid_keys(column_names=["xp", "level", "progress", "username", "offset"])
-    def change(self, user_id, **kwargs):
-        self._update(conditions=self._get_conditions(id=user_id), new_value=kwargs, id=user_id)
+    def reset(self, user_id):
+        self._update(conditions=self._get_conditions(id=user_id), new_value={"xp":0, "level":0, "progress":0.0}, id=user_id)
 
     # return Experience
-    def get(self):
-        return self._get_values_from_raw_data(self.raw_data, add_id=True, ommit=["archived"])
+    def get(self, multiple=True, only_archived=False):
+        if multiple:
+            return self._get_values_from_raw_data(self.raw_data, add_id=True, omitted=["archived"])
+        elif only_archived:
+            return next(iter(self._get_values_from_raw_data(self.raw_data, specified=["archived"])), {}).get("archived", None)
+        return next(iter(self._get_values_from_raw_data(self.raw_data, omitted=["progress", "archived"])), None)
+    
+    # special return Experience from dict
+    def get_dict(self, user_id):
+        try:
+            return self._get_values_from_raw_data({user_id: self.raw_data[user_id]}, omitted=["progress", "archived"])[0]
+        except KeyError:
+            return None    
+
+
+class ExperienceInfo(Database):
+    table = "experience_info"
+    
+    def __init__(self, extended=False, **kwargs):
+        self.extended = extended
+        self.columns  = self._setup_table(types={"pet_from_sea":"bool", "pet_dog":"bool", "pet_ashwinder":"bool", "pet_thestral":"bool", "offset":"bool", "archived":"bool"}, **kwargs)
+        self.raw_data = self._select(self.table)
+    
+    # add ExperienceInfo
+    @sql_full_table_validator
+    @sql_update_with_valid_keys(column_names=["user_id", "pet_ashwinder"])
+    def add(self, user_id, pet_ashwinder):
+        self._insert(new_record=(pet_ashwinder,), custom_id=user_id)
+
+    # change ExperienceInfo
+    @sql_only_one_validator
+    @sql_update_with_valid_keys(column_names=["username", "pet_from_sea", "pet_dog", "pet_ashwinder", "pet_thestral", "favourite_color", "offset"])
+    def change(self, **kwargs):
+        self._update(new_value=kwargs)
+    
+    # return ExperienceInfo
+    def get(self, multiple=False):
+        if multiple:
+            return self._get_values_from_raw_data(self.raw_data, add_id=True, omitted=["archived"] if self.extended else [])
+        return next(iter(self._get_values_from_raw_data(self.raw_data, omitted=["username", "offset"])), None)
 
 
 class ExtraVariable(Database):
-    
+    table = "extra_variables"
+
     @sql_entire_table_init_validator
     def __init__(self, **kwargs):  
-        self.table    = "extra_variables"
         self.columns  = self._setup_table(types={"value":0}, **kwargs)
         self.raw_data = self._only_one_variable(self._select(self.table))
     
@@ -92,8 +121,9 @@ class ExtraVariable(Database):
 
 
 class Portkeys(Database):
+    table = "portkeys"
+
     def __init__(self, **kwargs):
-        self.table    = "portkeys"
         self.columns  = self._setup_table(types={"from_wb":"bool", "multiple_choice":"binary_13", "birthday":"datetime"}, **kwargs)
         self.raw_data = self._select(self.table)
     
@@ -122,17 +152,15 @@ class Portkeys(Database):
 
     # return Portkey / Portkeys
     def get(self, multiple=False):
-        if not multiple:
-            try:
-                return self._get_values_from_raw_data(self.raw_data, add_id=True, ommit=["message_id"])[0]
-            except IndexError:
-                return None
-        return [portkey["user_id"] for portkey in self._get_values_from_raw_data(self.raw_data)]
+        if multiple:
+            return [portkey["user_id"] for portkey in self._get_values_from_raw_data(self.raw_data)]
+        return next(iter(self._get_values_from_raw_data(self.raw_data, add_id=True, omitted=["message_id"])), None)
 
 
 class WelcomeMessages(Database):
+    table = "welcome_messages"
+    
     def __init__(self, **kwargs):  
-        self.table    = "welcome_messages"
         self.columns  = self._setup_table(types={"date":"datetime"}, **kwargs)
         self.raw_data = self._select(self.table)
 
@@ -146,10 +174,15 @@ class WelcomeMessages(Database):
     def remove(self, user_id):
         try:
             if deleted_record := self._delete(conditions=self._get_conditions(id=user_id), id=user_id):
-                return next(iter(self._get_values_from_raw_data(deleted_record)))["message_id"]
+                return self._get_values_from_raw_data(deleted_record, specified=["message_id"])[0].get("message_id")
         except Exception:
             return None
 
     # return WelcomeMessages
     def get(self):
-        return self._get_values_from_raw_data(self.raw_data, add_id=True, ommit=["date"])
+        return self._get_values_from_raw_data(self.raw_data, add_id=True, omitted=["date"])
+
+
+# set up class attributes:
+Experience.joined_table     = ExperienceInfo
+ExperienceInfo.joined_table = Experience
