@@ -1,6 +1,6 @@
 from src.body import bot
-from src.db_classes import WelcomeMessages, Portkeys
-from src.functions import draw_infocard, parse_xp_amount, print_notification
+from src.db_classes import Portkeys, WelcomeMessages
+from src.functions import draw_infocard, print_notification
 from src.variables import test_bot, channel_sections_ids, channel_ids, channel_ids_test
 from src.views import WelcomeView
 
