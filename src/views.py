@@ -1,7 +1,5 @@
-from src.functions import print_house_members
-from src.variables import housecup_disciplines_names
+from src.functions import disable_after, print_house_members
 
-from discord.components import SelectOption
 from discord.enums import ButtonStyle
 from discord.ext import commands
 from discord.interactions import Interaction
@@ -11,14 +9,12 @@ from discord.ui import button, Button, View, Select
 from random import choice
 
 
-__all__ = ["WelcomeView", "DropdownView", "MemberView"] 
-
-
 # welcome message
 class WelcomeView(View):
     
     def __init__(self, user, stickers):
         super().__init__(timeout=None)
+        
         self.user = user
         self.stickers = stickers
         self.clicked_users = []
@@ -38,7 +34,7 @@ class WelcomeView(View):
 
             sticker = choice(self.stickers)
 
-            # TODO! If they ever allow webhooks to send stickers
+            #NOTE if they ever allow webhooks to send stickers
             await interaction.response.send_message("Your message has been sent!", ephemeral=True)
             await interaction.message.reply(content=f"<@{interaction.user.id}> says: Welcome <@{self.user.id}>! {sticker.description}", stickers=[sticker])
 
@@ -46,46 +42,81 @@ class WelcomeView(View):
             await interaction.response.send_message("We limited the interactions to one greeting per user!", ephemeral=True)
 
 
-# dropdown select
-class DropdownView(View):
+# disciplines in a dropdown select
+class DisciplinesView(View):
     def __init__(self, options):
         super().__init__(timeout=None)
-        self.add_item(self.DropdownList(options))
+
+        self.dropdown = self.DisciplinesList(options, self)
         self.picked = None
+
+        self.add_item(self.dropdown)
     
-    async def respond(self, interaction:Interaction, choice):
-        self.picked = int(choice)
-        self.children[0].disabled= True
-        await interaction.message.edit(view=self)
-        await interaction.response.defer()
-        self.stop()
+    @disable_after
+    async def respond(self, interaction:Interaction, choice_idx):
+        self.picked = choice_idx
 
-    class DropdownList(Select):
-        def __init__(self, options):
-            # invert dictionary
-            housecup_disciplines = {v:k for k,v in housecup_disciplines_names.items()}
-            super().__init__(options=[SelectOption(label=option, value=housecup_disciplines[option]) for option in options])
-        
+    class DisciplinesList(Select):
+        def __init__(self, options, parent_view):
+            super().__init__(placeholder="Choose an option...", options=options)
+            
+            self.parent_view = parent_view
+
         async def callback(self, interaction:Interaction):
-            await self.view.respond(interaction, choice=self.values[0])
+            selected_value = int(self.values[0])
+            matching_index = next((i for i, option in enumerate(self.options) if option.value == selected_value), None)
+            await self.parent_view.respond(interaction, choice_idx=matching_index)
 
+
+# questions in a dropdown select
+class QuestionnaireView(View):
+    def __init__(self, options):
+        super().__init__(timeout=None)
+        
+        self.dropdown = self.QuestionnaireList(options, self)
+        self.picked   = None
+
+        self.add_item(self.dropdown)
+    
+    @disable_after
+    async def respond(self, interaction:Interaction, choice):
+        self.picked = choice
+    
+    class QuestionnaireList(Select):
+        def __init__(self, options, parent_view):
+            super().__init__(placeholder="Choose an option...", options=options)
+            
+            self.parent_view = parent_view
+
+        async def callback(self, interaction:Interaction):
+            selected_value = self.values[0]
+            await self.parent_view.respond(interaction, choice=True if selected_value == "True" else False if selected_value == "False" else int(selected_value) if selected_value.isdigit() else None)
+    
 
 # view members list
 class MemberView(View):
-    def __init__(self, members, message, is_command=False):
+    def __init__(self, members, message):
         super().__init__(timeout=None)
+        
         self.members = members
-        self.message = message
-        self.is_command = is_command
+
+        if message is not None:
+            self.message = message
+            self.cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=5, type=commands.BucketType.member)
+        else:
+            self.message = None
 
         self.page = 0
         self.filter = 0
-
-        self.cooldown = commands.CooldownMapping.from_cooldown(rate=1, per=5, type=commands.BucketType.member)
     
     # print a new list
-    async def print_list(self):
-        await self.message.edit(embed=print_house_members(self.members, self.page, self.filter), view=self)
+    async def print_list(self, interaction=None):
+        embed = print_house_members(self.members, self.page, self.filter)
+        
+        if self.message is not None:
+            await self.message.edit(embed=embed, view=self)
+        else:
+            self.message = await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
     
     # change printed members
     async def update_members(self, members):
@@ -94,33 +125,31 @@ class MemberView(View):
 
     # cooldown between button presses
     def cooldown_interaction(func):
-        async def response(self, *args):
-            (interaction, button) = args
+        async def response(self, interaction: Interaction, button: Button): 
             
-            if not self.is_command:
-                interaction.message.author = interaction.user
+            # handle cooldown for interactions if message exists
+            if self.message is not None:
                 bucket = self.cooldown.get_bucket(interaction.message)
                 retry = bucket.update_rate_limit()
 
                 if retry:
                     return await interaction.response.send_message(f"Slow down! Try again in {round(retry, 1)} seconds.", ephemeral=True)
+
+            # call the actual button handler
+            func(self, interaction, button)
+
+             # after interaction, update the list
+            await self.print_list(interaction)
             
-                args = (interaction, button)
-
-            func(self, *args)
-
-            await self.print_list()
-            return await interaction.response.defer()
+            # defer the response if message exists
+            if self.message is not None:
+                return await interaction.response.defer()
     
         return response
 
     # turn pages/filters of list
-    def turn_limit(self, turnable, max):
-        if turnable > max:
-            return 0
-        elif turnable < 0:
-            return max
-        return turnable
+    def turn_limit(self, turnable: int, max: int) -> int:
+        return (turnable + max + 1) % (max + 1)
 
     @button(label="",  style=ButtonStyle.grey, emoji="⬅️", custom_id="left")
     @cooldown_interaction

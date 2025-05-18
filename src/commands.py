@@ -12,6 +12,7 @@ from typing import Optional, Literal
 
 import statistics
 
+from discord.components import SelectOption
 from discord.embeds import Embed
 from discord.errors import NotFound
 from discord.interactions import Interaction
@@ -69,7 +70,7 @@ async def postpone_club_event_24h(interaction:Interaction):
 @bot.tree.command(name="set_maintenance")
 @standard_response(silent=True)
 async def set_maintenance_base_date(interaction:Interaction, month:Literal[tuple(vars.months.keys())], day:int): # type: ignore
-    ''' Set the base date for Maintenance '''
+    ''' Set the Base Date for Maintenance '''
 
     new_date=datetime(year=datetime.now().year, month=vars.months[month], day=day)
 
@@ -87,26 +88,21 @@ async def add_disciplines(interaction:Interaction):
     ''' Add House Cup disciplines '''
 
     REQUIRED_OPTIONS = 4
-    options = list(vars.housecup_disciplines_names.values())
+    
+    # invert dictionary
+    options = [SelectOption(label=value, value=key) for key,value in vars.housecup_disciplines_names.items()]
 
     all_picked = []
     for idx in range(1, REQUIRED_OPTIONS+1):
-        view = DropdownView(options)
+        view = DisciplinesView(options)
         message = await interaction.channel.send(content=f"Pick the {idx}. discipline:", view=view)
         await view.wait()
 
+        # if nothing was picked
+        picked = 0 if view.picked is None else view.picked
+
         # dropdown list gets smaller with each picked option
-        picked = view.picked
-        all_picked.append(picked)
-        
-        # remove the display version of the picked item
-        try:
-            options.remove(vars.housecup_disciplines_names[picked])
-        
-        # already popped or not found — possibly due to fallback
-        except ValueError:
-            continue
-        
+        all_picked.append(options.pop(picked).value)
         await message.delete()
     
     ExtraVariable(name="housecup_disciplines").change(to=tuple(all_picked))
@@ -250,7 +246,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool=True, wi
     CHANNEL = SERVER.get_channel(channel_ids["leaderboard"])
 
     # get leaderboard info
-    if data := Experience(archived=False, order=["xp-"]).get():
+    if data := ExperienceInfo(extended=True, archived=False, order=["xp-"]).get(multiple=True):
 
         # clear the channel
         await CHANNEL.purge(limit=None)
@@ -298,7 +294,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool=True, wi
 
 @bot.tree.command(name="tweak_xp")
 @standard_response(silent=True)
-async def tweak_xp(interaction: Interaction, member:Member, action:Literal["Add", "Subtract", "Set"]="Add", amount:int=10, comment:Optional[str]=None):
+async def tweak_xp_manually(interaction: Interaction, member:Member, action:Literal["Add", "Subtract", "Set"]="Add", amount:int=10, comment:Optional[str]=None):
     ''' Add / Subtract / Set  XP for User '''
 
     SERVER          = bot.server
@@ -330,43 +326,107 @@ async def reset_xp(interaction: Interaction, member:Member):
     CHANNEL = SERVER.get_channel(channel_ids["points-log"])
 
     USER_EXPERIENCE = bot.user_experience
-    USER_EXPERIENCE.change(user_id=member.id, xp=0, level=0, progress=0.0)
+    USER_EXPERIENCE.reset(user_id=member.id)
 
     await interaction.response.send_message(f"User {member.nick or member.global_name} has been **reseted**!", ephemeral=True)
     await CHANNEL.send(content=f"**{member.nick or member.global_name}** - points reseted! XP: **0**")
 
 @bot.tree.command(name="change_lb")
 @standard_response(silent=True)
-async def tweak_xp(interaction: Interaction, member:Member, username:Optional[str], offset:Optional[bool]):
+async def change_leaderboard(interaction: Interaction, member:Member, username:Optional[str], offset:Optional[bool]):
     ''' Change the Leaderboard properties for User '''
+
+    info = ExperienceInfo(extended=True, user_id=member.id, omitted_columns=["xp", "level", "progress"])
     
-    options = {}
+    if (is_archived := info.get_one_column("archived")) is None:
+        raise Exception(f"User {member.nick or member.global_name} doesn't have a leaderboard card")
+
+    if is_archived is True:
+        raise Exception(f"User {member.nick or member.global_name} was ARCHIVED")
+    
     if username is None and offset is None:
         raise Exception("pick a 'username' or an 'offset'")
-    
-    if username and username.strip() != "":
-        options["username"] = username
-    if offset is not None:
-        options["offset"] = offset
 
-    USER_EXPERIENCE = bot.user_experience
-    USER_EXPERIENCE.change(user_id=member.id, **options)
+    all_picked = {}
+    if username and username.strip() != "":
+        all_picked["username"] = username
+    if offset is not None:
+        all_picked["offset"] = offset
+
+    info.change(**all_picked)
 
     await interaction.response.send_message(f"User {member.nick or member.global_name} leaderboard card has been **changed**!", ephemeral=True)
 
 ############################################################################################################
 
 # User commands
+@bot.tree.command(name="questionnaire")
+@standard_response()
+async def questionnaire_leaderboard(interaction:Interaction, question_idx:Optional[int]):
+    ''' Answer questions to customize your leaderboard card '''
+
+    member = interaction.user
+    info = ExperienceInfo(extended=True, user_id=member.id, omitted_columns=["xp", "level", "progress"])
+
+    if (is_archived := info.get_one_column("archived")) is True:
+        USER_EXPERIENCE = bot.user_experience
+        USER_EXPERIENCE.unarchive(user_id=member.id)
+
+    QUESTIONS = 4
+    questions = {1: {"description": "Do you enjoy exploring the Black Lake?", "variable": "pet_from_sea"},
+                 2: {"description": "Do you prefer dogs to cats?", "variable": "pet_dog"},
+                 3: {"description": "Can you see Thestrals?", "variable": "pet_thestral"},
+                 4: {"description": "What is your favorite color?", "variable": "favourite_color"},}
+
+    if question_idx:
+        if 1 <= question_idx <= QUESTIONS:
+            questions_idxs = [question_idx]
+        else:
+            raise Exception(f"'{question_idx}' is not a valid question number")
+    else:
+        questions_idxs = [i for i in range(1, QUESTIONS+1)]
+
+    all_picked = {}
+    for question_idx in questions_idxs:
+        if question_idx != 4:
+            options = [SelectOption(label="Yes", value=True), SelectOption(label="No", value=False)]
+            default_value = options[1].value
+        else:
+            options = [SelectOption(label="Red", value=0),
+                       SelectOption(label="Orange", value=1),
+                       SelectOption(label="Yellow", value=2),
+                       SelectOption(label="Green", value=3),
+                       SelectOption(label="Blue", value=4),
+                       SelectOption(label="Purple", value=5),
+                       SelectOption(label="White", value=6),
+                       SelectOption(label="Black", value=7),]
+            default_value = options[0].value
+
+        view = QuestionnaireView(options)
+        await interaction.followup.send(content=f"**Question {question_idx}:**\n" + questions[question_idx]["description"], view=view, ephemeral=True)
+        await view.wait()
+
+        if (picked := view.picked) is None:
+            picked = default_value
+
+        all_picked[questions[question_idx]["variable"]] = picked
+
+    # TODO! insert without defaults if provided
+    if is_archived is None:
+        roles = set([role.name for role in getattr(member, "roles", [])])
+        ExperienceInfo().add(user_id=member.id, pet_ashwinder=not bool(roles & {"gop", "guest"}))
+        ExperienceInfo(user_id=member.id).change(**all_picked)
+    else:
+        info.change(**all_picked)
+
+
 @bot.tree.command(name="house_members")
 @standard_response(silent=True)
 async def house_members(interaction:Interaction):
-    ''' Prints a list of members of each House, that will be deleted after 5 min '''
+    ''' Prints a list of members of each House without cooldown (it will only be seen by you) '''
     
-    SERVER  = bot.server
-    MINUTES = 5
-
-    message = await interaction.channel.send(content="", embed=print_house_members(SERVER.members, page=0, filter=0), delete_after=60*MINUTES)
-    await message.edit(view=MemberView(SERVER.members, message, is_command=True))
+    SERVER = bot.server
+    await interaction.response.send_message(embed=print_house_members(SERVER.members, page=0, filter=0), view=MemberView(SERVER.members, message=None), ephemeral=True)
 
 @bot.tree.command(name="change_nickname")
 @standard_response(silent=True)
@@ -415,6 +475,6 @@ async def is_housecup_this_week(interaction:Interaction):
     embed = Embed(color=vars.system_embed_color, description="".join(text))
     
     if trigger:
-        await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup this week!", embed=embed, ephemeral=True)
+        await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup {'today' if today.weekday() == 5 else 'this week'}!", embed=embed, ephemeral=True)
     else:
         await interaction.response.send_message("There's **NO** House Cup this week!", embed=embed, ephemeral=True)
