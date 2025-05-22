@@ -38,9 +38,11 @@ R = TypeVar("R")   # returns
 
 delete_after = {"hours":0, "minutes":0, "seconds":0}
 
-if vars.test_bot["test_tasks"]:
+if vars.test_bot["test_command"] or vars.test_bot["test_events"] or vars.test_bot["test_tasks"]:
     channel_ids = vars.channel_ids_test
-    delete_after["minutes"] = vars.wait_for * 2
+    
+    if vars.test_bot["test_tasks"]:
+        delete_after["minutes"] = vars.wait_for * 2
 else:
     channel_ids = vars.channel_ids
 
@@ -185,6 +187,11 @@ def convert_to_unix_time(date:datetime, mode:str):
     return f'<t:{int(time.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
 
 
+# "flip through" a list
+def turn_limit(turnable: int, max: int) -> int:
+    return (turnable + max) % (max)
+
+
 def catch_error(dict:dict, keys:list):
     for key in keys:
         try:
@@ -256,6 +263,11 @@ def get_image(url):
     return response.content
 
 
+async def get_image_from_channel(channel, message_id):
+    message = await channel.fetch_message(message_id)
+    return message.attachments[0]
+
+
 def get_avatar(user, none=False):
     try:
         return user.avatar._url
@@ -289,20 +301,18 @@ def get_animal_rank(user, level=None):
     user_level = user.get("level", level) 
 
     # get max level ignoring the suffixes
-    max_level = max(int("".join(filter(str.isdigit, level))) for level in pets)
+    max_level = max(int("".join(filter(str.isdigit, level))) for level in pets if level != "unknown")
 
     # limit the levels
     if user_level > max_level:
         user_level = max_level
     
     # find suffix per level rules
-    suffix_rules = {
-        (2, 6, 11, 15, 19, 25, 28, 32, 37,): lambda: "b" if user["pet_from_sea"] else "a",
-        (10, 18, 27, 34,):                   lambda: "b" if user["pet_dog"] else "a",
-        (20,):                               lambda: "b" if user["pet_ashwinder"] else "a",
-        (30,):                               lambda: "b" if user["pet_thestral"] else "a",
-        (40,):                               lambda: {1: "b", 2: "c", 3: "d", 4: "e", 5: "f", 6: "g", 7:"h"}.get(user["favourite_color"], "a"),
-    }
+    suffix_rules = {(2, 6, 11, 15, 19, 25, 28, 32, 37,): lambda: "b" if user["pet_from_sea"] else "a",
+                    (10, 18, 27, 34,):                   lambda: "b" if user["pet_dog"] else "a",
+                    (20,):                               lambda: "b" if user["pet_ashwinder"] else "a",
+                    (30,):                               lambda: "b" if user["pet_thestral"] else "a",
+                    (40,):                               lambda: {1: "b", 2: "c", 3: "d", 4: "e", 5: "f", 6: "g", 7:"h"}.get(user["favourite_color"], "a"),}
 
     suffix = ""
     for levels, rule in suffix_rules.items():
@@ -495,7 +505,7 @@ def draw_leaderboard(user, rank, house, static, is_bytes=False):
         background.alpha_composite(im=house_logo, dest=(388, 194))
 
     # progress details (pet name and level)    
-    pet = get_animal_rank(user)
+    pet = get_animal_rank(user)["name"]
 
     if len(pet) > 20:
         pet_font = fonts["MAGIC_35"]
@@ -588,8 +598,7 @@ def parse_xp_amount(func):
 
         # check roles to assign Sphinx or Ashwinder pet accordingly
         if is_new:
-            roles = set([role.name for role in getattr(member, "roles", [])])
-            kwargs["pet_ashwinder"] = not bool(roles & {"gop", "guest"})
+            kwargs["pet_ashwinder"] = not bool({role.name for role in getattr(member, "roles", [])} & {"gop", "guest"})
         else:
             kwargs["experience"]["archived"] = False
 
@@ -624,7 +633,7 @@ def create_leaderboard(server, data, custom_housecup):
                 rank_xp = user["xp"]
 
         house = None
-        roles = [role.name for role in member.roles]
+        roles = {role.name for role in getattr(member, "roles", [])}
 
         # add points for the custom housecup
         for idx, house in enumerate(custom_housecup):
@@ -635,16 +644,16 @@ def create_leaderboard(server, data, custom_housecup):
         else:
             # get house if no custom housecup
             if house is None:
-                for role in roles:
-                    if role in set(vars.houses_names_list()):
-                        house = role
-                        break
+                house = next((house for house in vars.houses_names_list() if house in roles), None)
 
         # get the special role color
-        if roles[-1] in ["captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"]:
-            color = member.roles[-1].color.value
-        else:
-            color = 5198940
+        try:
+            if member.roles[-1].name in {"captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"}:
+                color = member.roles[-1].color.value
+            else:
+                color = 5198940
+        except AttributeError:
+            color = vars.system_embed_color
 
         if (username := user.pop("username", None)) is None:
             user["username"] = (member.nick or member.global_name).replace(" ", "\n ")
@@ -728,9 +737,9 @@ def parse_portkey_data(func):
 
 def print_portkey(member, portkey):
     try:
-        roles = [role.name for role in member.roles]
+        roles = {role.name for role in getattr(member, "roles", [])}
 
-        if member.roles[-1].name in ["captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"]:
+        if member.roles[-1].name in {"captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"}:
             color = member.roles[-1].color.value
         else:
             color = 5198940
@@ -749,7 +758,7 @@ def print_portkey(member, portkey):
     line_1 = f"{member.nick or member.global_name} | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
     embed.add_field(name="1. Hello, I'm... | And my ID is...", value=line_1, inline=True)
 
-    line_2 = vars.houses[[house for house in vars.houses_names_list(is_short=False) if house in set(roles)][0]]["emoji"]
+    line_2 = vars.houses[[house for house in vars.houses_names_list(is_short=False) if house in roles][0]]["emoji"]
     embed.add_field(name="2. My house is...", value=line_2, inline=True)
     
     line_3 = (("Yes | " if portkey["from_wb"] else "No, ") + portkey["old_username"]) if portkey["old_username"] else ("Yes" if portkey["from_wb"] else "No")
@@ -777,15 +786,31 @@ def print_portkey(member, portkey):
 
 ############################################################################################################
 
+async def print_suitcase(channel, info, level):
+    embed = Embed(color=vars.system_embed_color, title=f"{info['username']}'{'s' if info['add_s'] else ''} Suitcase:", description="⭐ __Current Level__ ⭐" if info['current_level'] == level else "")
+    
+    if info['current_level']:
+        pet = get_animal_rank(user=info, level=level)
+        embed.set_footer(text=f"Level: {info['current_level']},​ ​ ​XP: {round(info['xp_for_next_level']*info['progress'])} / {info['xp_for_next_level']}​ ​ ({info['progress']*100}%)")
+    else:
+        pet = vars.pets.get(list(vars.pets)[level])
+        embed.set_footer(text=f"Level: ♾️")
+
+    embed.add_field(name="", value=f"*{pet['name']}* (Level {level})")
+    embed.set_image(url=pet["url"] if "assets__" not in pet["url"] else await get_image_from_channel(channel, message_id=pet["url"].split("__")[1]))
+
+    return embed
+
+############################################################################################################
+
 def print_house_members(members, house, group):
     
     # filter by house and group
     users = []
     for member in members:
-        roles = set([role.name for role in member.roles])
 
         # equivalent to .issubset()
-        if {house, group} <= roles:
+        if {house, group} <= {role.name for role in getattr(member, "roles", [])}:
             users.append(member)
 
     users = sorted(users, key=lambda x: (x.nick or x.global_name))
@@ -846,8 +871,6 @@ async def set_event_and_notification(server, event_info, date, event_duration, s
     
     # get image
     channel = server.get_channel(channel_ids["assets"])
-    message = [message async for message in channel.history(limit=None) if message.content == event_info["image_id"]][0]
-
 
     if not vars.test_bot["test_tasks"]:
 
@@ -860,7 +883,7 @@ async def set_event_and_notification(server, event_info, date, event_duration, s
                                                 location=event_info["location"],
                                                 privacy_level=PrivacyLevel.guild_only,
                                                 entity_type=EntityType.external,
-                                                image=get_image(url=message.attachments[0]))
+                                                image=get_image(url=await get_image_from_channel(channel, message_id=event_info["image_id"])))
         except ValueError:
             print("Could not create event... Image not found!")
         except CommandInvokeError:
@@ -917,8 +940,8 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
 
         event_info = {"mention":    f"Mention: <@{user.id}>",
                       "title":      f"Level {level_ups[-1]}!",
-                      "description":f"**{user.nick or user.global_name}** just caught a **{get_animal_rank(user=user_data, level=level_ups[0])}** <:hugs:1256225688403447888>\n",
-                      "extra_fields":[f"Wait! There is more... they also caught a {get_animal_rank(user=user_data, level=level)}\n" for level in level_ups[1:]],
+                      "description":f"**{user.nick or user.global_name}** just caught a **{get_animal_rank(user=user_data, level=level_ups[0])['name']}** <:hugs:1256225688403447888>\n",
+                      "extra_fields":[f"Wait! There is more... they also caught a {get_animal_rank(user=user_data, level=level)['name']}\n" for level in level_ups[1:]],
                       "footer":   '''"One can never have enough pets!"''',
                       "account":     "Prof. Dumbledore",}
 
@@ -951,21 +974,21 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
                       "account":        "Prof. Flitwick",}
 
         if event_name == "Card - Matagot":
-            event_info["image_id"] = "card_1_image"
+            event_info["image_id"] = "1336246317328105582"
             event_info["title"] = "<Matagot! (rare)>"
             
             event_info["description"] = event_info["description"].replace("/000", "/1278841345133252662")
             event_info["description"] = replace_multiple(event_info["description"], ["Staircase", "\nMatagot", "next to the Transfiguration Classroom", "Hand it Over to Hagrid", "1 copy"])
         
         elif event_name == "Card - Book of Monsters":
-            event_info["image_id"] = "card_2_image"
+            event_info["image_id"] = "1336246371501604937"
             event_info["title"] = "<Book of Monsters! (rare)>"
 
             event_info["description"] = event_info["description"].replace("/000", "/1278841654739992588")
             event_info["description"] = replace_multiple(event_info["description"], ["History of Magic Classroom", "Book", "in the corner", "Stroke the Spine and Then Open It", "1 copy"])
             
         elif event_name == "Card - Cornish Pixies":
-            event_info["image_id"] = "card_3_image"
+            event_info["image_id"] = "1337448876227170426"
             event_info["title"] = "<Cornish Pixies! (common)>"
             
             event_info["description"] = event_info["description"].replace("/000", "/1278842175886590078")
@@ -977,7 +1000,7 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
     elif event_name == "Housecup":
         discipline = variables[0]
         
-        event_info = {"image_id":    "housecup_image",
+        event_info = {"image_id":    "1338156870677954601",
                       "title":      f"<{vars.housecup_disciplines_names[discipline]}!>",
                       "subtitle":    "Reminder: <House Cup>!",
                       "description": "Make sure you be there and may the best house win!",
@@ -988,7 +1011,7 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
 
 
     elif event_name == "Club Events":
-        event_info = {"image_id":    "event_image",
+        event_info = {"image_id":    "1317192161891979334",
                       "title":       "GOP Club Events!",
                       "subtitle":   f"Reminder: {vars.weekdays[date.weekday()]}!",
                       "description": "**We start 000!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance!",
@@ -1009,7 +1032,7 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
 
 
     elif event_name == "Maintenance":
-        event_info = {"image_id":    "maintenance_image",
+        event_info = {"image_id":    "1325650943332712479",
                       "title":       "",
                       "subtitle":    "Reminder: <Maintenance!>",
                       "description": "**It starts 000!**\nDuring this period the game will be unavailable!",
