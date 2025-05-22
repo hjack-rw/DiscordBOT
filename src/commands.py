@@ -2,7 +2,7 @@ import src.variables as vars
 
 from src.body import bot
 from src.db_classes import *
-from src.functions import CustomHousecup, standard_response, send_webhook, get_avatar, draw_infocard, create_leaderboard, print_portkey, parse_portkey_data, print_house_members
+from src.functions import CustomHousecup, standard_response, send_webhook, get_avatar, get_level_change, draw_infocard, create_leaderboard, print_portkey, print_house_members, print_suitcase
 from src.tasks import print_notification
 from src.views import *
 
@@ -411,11 +411,44 @@ async def questionnaire_leaderboard(interaction:Interaction, question_idx:Option
 
     # TODO! insert without defaults if provided
     if is_archived is None:
-        roles = set([role.name for role in getattr(member, "roles", [])])
-        ExperienceInfo().add(user_id=member.id, pet_ashwinder=not bool(roles & {"gop", "guest"}))
+        ExperienceInfo().add(user_id=member.id, pet_ashwinder=not bool({role.name for role in getattr(member, "roles", [])} & {"gop", "guest"}))
         ExperienceInfo(user_id=member.id).change(**all_picked)
     else:
         info.change(**all_picked)
+
+
+@bot.tree.command(name="suitcase")
+@standard_response(silent=True)
+async def scamander_suitcase(interaction:Interaction, all_pets:Optional[bool]):
+    ''' Prints a list of all your caught pets '''
+
+    SERVER  = bot.server
+    channel = SERVER.get_channel(channel_ids["assets"])
+
+    member = interaction.user
+
+    if all_pets and member.id != 385899007991480321:
+        raise Exception("you don't have access to all pets")
+
+    elif all_pets:
+        info = {"username": "Newt Scamander",
+                "level":     None,
+                "add_s":     True,}
+
+    else:
+        info = ExperienceInfo(extended=True, user_id=member.id, omitted_columns=["xp"]).get()
+        info["username"]          = member.nick or member.global_name
+        info["xp_for_next_level"] = 5 * (info["level"] ** 2) + (50 * info["level"]) + 100
+
+        # find if the username ends with 's'
+        for char in reversed(info["username"]):
+            if char.isalpha():
+                info["add_s"] = char.lower() != 's'
+                break
+        else:
+            info["add_s"] = True
+
+    await PetsView(channel, info).print_pet(interaction)
 
 
 @bot.tree.command(name="house_members")
@@ -426,6 +459,7 @@ async def house_members(interaction:Interaction):
     SERVER = bot.server
     await MemberView(members=SERVER.members, message=None).print_list(interaction)
 
+
 @bot.tree.command(name="change_nickname")
 @standard_response(silent=True)
 async def change_nick(interaction:Interaction, nick:str):
@@ -433,6 +467,7 @@ async def change_nick(interaction:Interaction, nick:str):
 
     await interaction.user.edit(nick=nick)
     await interaction.response.send_message("Your Nickname should have now **changed**!", ephemeral=True)
+
 
 @bot.tree.command(name="is_house_cup_this_week")
 @standard_response(silent=True)

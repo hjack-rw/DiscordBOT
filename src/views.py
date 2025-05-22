@@ -1,5 +1,5 @@
-from src.functions import disable_after, print_house_members
-from src.variables import houses_names_list
+from src.functions import disable_after, turn_limit, print_suitcase, print_house_members
+from src.variables import houses_names_list, pets
 
 from discord.enums import ButtonStyle
 from discord.ext import commands
@@ -92,7 +92,53 @@ class QuestionnaireView(View):
         async def callback(self, interaction:Interaction):
             selected_value = self.values[0]
             await self.parent_view.respond(interaction, choice=True if selected_value == "True" else False if selected_value == "False" else int(selected_value) if selected_value.isdigit() else None)
+
+
+# view pets of each level
+class PetsView(View):
+    def __init__(self, channel, info):
+        super().__init__(timeout=None)
+
+        self.channel  = channel
+
+        current_level = info.pop("level")
+        self.info     = info
+
+        self.info["current_level"] = current_level
+        
+        if current_level:
+            self.max_pet = current_level + 1
+            self.pet     = current_level
+        else:
+            self.max_pet = len(pets)
+            self.pet     = 0
     
+    # print a new pet
+    async def print_pet(self, interaction):
+        await interaction.response.send_message(embed=await print_suitcase(channel=self.channel, info=self.info, level=self.pet), view=self, ephemeral=True)
+
+    # print a new pet
+    def cooldown_interaction(func):
+        async def response(self, interaction: Interaction, button: Button): 
+            
+            # call the actual button handler
+            func(self, interaction, button)
+
+            # after interaction, send the updated embed
+            await self.print_pet(interaction)
+        
+        return response
+
+    @button(label="",  style=ButtonStyle.grey, emoji="⬅️", custom_id="left")
+    @cooldown_interaction
+    def turn_left(self, interaction: Interaction, button: Button):
+        self.pet = turn_limit(turnable=(self.pet-1), max=self.max_pet)
+
+    @button(label="",  style=ButtonStyle.grey, emoji="➡️", custom_id="right")
+    @cooldown_interaction
+    def turn_right(self, interaction: Interaction, button: Button):
+        self.pet = turn_limit(turnable=(self.pet+1), max=self.max_pet)
+
 
 # view members list
 class MemberView(View):
@@ -145,7 +191,7 @@ class MemberView(View):
             # call the actual button handler
             func(self, interaction, button)
 
-             # after interaction, update the list
+            # after interaction, update the list
             await self.print_list(interaction)
             
             # defer the response if message exists
@@ -154,24 +200,20 @@ class MemberView(View):
     
         return response
 
-    # turn pages/filters of list
-    def turn_limit(self, turnable: int, max: int) -> int:
-        return (turnable + max) % (max)
-
     @button(label="",  style=ButtonStyle.grey, emoji="⬅️", custom_id="left")
     @cooldown_interaction
     def turn_left(self, interaction: Interaction, button: Button):
-        self.page = self.turn_limit(turnable=(self.page-1), max=len(self.houses))
+        self.page = turn_limit(turnable=(self.page-1), max=len(self.houses))
 
     @button(label="",  style=ButtonStyle.grey, emoji="➡️", custom_id="right")
     @cooldown_interaction
     def turn_right(self, interaction: Interaction, button: Button):
-        self.page = self.turn_limit(turnable=(self.page+1), max=len(self.houses))
+        self.page = turn_limit(turnable=(self.page+1), max=len(self.houses))
     
     @button(label="GOP",  style=ButtonStyle.red, custom_id="filter")
     @cooldown_interaction
     def switch_filter(self, interaction: Interaction, button: Button):
-        self.filter = self.turn_limit(turnable=(self.filter+1), max=len(self.groups))
+        self.filter = turn_limit(turnable=(self.filter+1), max=len(self.groups))
 
         if self.filter == 0:
             self.children[2].label = "GOP"
