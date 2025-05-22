@@ -4,6 +4,8 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
+#TODO! make an get from assets function
+
 #TODO! make get_csv universal
 
 #TODO! remove past bot notifications on midnight (if exist), but not SNAPE

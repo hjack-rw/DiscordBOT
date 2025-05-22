@@ -2,6 +2,7 @@
 system_variables
 requirements.txt
 pre_init.py
+test.py
 test_db.py
 test_image.py
 test_images/leaderboard_test.png
