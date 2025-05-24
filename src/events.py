@@ -51,7 +51,7 @@ async def on_member_remove(member):
     if not test_bot["test_events"] and not member.bot:
         
         CHANNEL = SERVER.get_channel(channel_ids["portkey-arrival"])
-        if message_id := Portkeys(user_id=member.id).archive():
+        if message_id := Portkeys(user_id=member.id).archive(return_empty=True):
             
             message = await CHANNEL.fetch_message(message_id)
             await message.delete()

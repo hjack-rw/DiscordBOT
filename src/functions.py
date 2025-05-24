@@ -786,7 +786,7 @@ def print_portkey(member, portkey):
 
 ############################################################################################################
 
-async def print_suitcase(channel, info, level):
+async def print_suitcase(images, info, level):
     embed = Embed(color=vars.system_embed_color, title=f"{info['username']}'{'s' if info['add_s'] else ''} Suitcase:", description="⭐ __Current Level__ ⭐" if info['current_level'] == level else "")
     
     if info['current_level']:
@@ -797,9 +797,13 @@ async def print_suitcase(channel, info, level):
         embed.set_footer(text=f"Level: ♾️")
 
     embed.add_field(name="", value=f"*{pet['name']}* (Level {level})")
-    embed.set_image(url=pet["url"] if "assets__" not in pet["url"] else await get_image_from_channel(channel, message_id=pet["url"].split("__")[1]))
+    embed.set_image(url=pet["url"])
 
-    return embed
+    match = re.search(r'attachment://(.*?)\.png', pet["url"])
+    if match:
+        return embed, images(filename__has="pet", filename__like=match.group(1)).get()
+    else:
+        return embed, MISSING
 
 ############################################################################################################
 

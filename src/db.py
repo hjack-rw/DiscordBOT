@@ -58,6 +58,9 @@ class permutation:
 # Validators
 ############################################################################################################
 
+class IdAlreadyExistsError(Exception):
+    pass
+
 def check_variable(self, variables:list, reverse=False):
     """Check the variables in question if == True"""
 
@@ -81,8 +84,13 @@ def sql_only_one_validator(func):
 
     @functools.wraps(func)
     def validator(self, *args, **kwargs):
-        if len(self.raw_data) == 1 and not check_variable(self, variables=["is_shortened"]):
-            return func(self, *args, **kwargs)
+        return_empty = kwargs.pop("return_empty", False)
+        
+        if not check_variable(self, variables=["is_shortened"]):
+            if len(self.raw_data) == 1:
+                return func(self, *args, **kwargs)
+            elif return_empty and len(self.raw_data) == 0:
+                return None
         
         raise Exception(f"sqlite3 table error: can only '{func.__name__}' with one record loaded")
     
@@ -129,12 +137,13 @@ def sql_entire_table_init_validator(func):
     def validator(self, *args, **kwargs):
         for kwarg in kwargs:
             if kwarg in ["omitted_columns", "specified_columns"]:
-                raise Exception(f"sqlite3 table error: needs to load all rows for '{self.__name__}'")
+                raise Exception(f"sqlite3 table error: needs to load all rows for '{self.__class__.__name__}'")
         return func(self, *args, **kwargs)
     
     return validator
 
-def check_type(key, value, type, req_numeric=False):
+def check_type(key, value, type, spec, required={"is_numeric":False,
+                                                 "is_text":   False}):
     """Check the values in question if == type(column)"""
     
     try:
@@ -156,8 +165,15 @@ def check_type(key, value, type, req_numeric=False):
             if not isinstance(value, type_dict[type]):
                 raise Exception(f"'{key}' is not a {type}!")
         
-        if req_numeric:
-            raise Exception(f"'{key}' has not a numeric filter!")
+        if spec:
+            if type != "binary_object":
+                if required["is_numeric"] and spec not in {"less", "lessequal", "great", "greatequal", "inequal"}:
+                    raise Exception(f"'{key}' has only numeric filters!")
+                
+                if required["is_text"] and spec not in {"below", "belowequal", "upper", "upperequal", "like", "has", "inequal"}:
+                    raise Exception(f"'{key}' has only text filters!")
+            else:
+                raise Exception(f"'{key}' is binary and has no filters!")
     except Exception as error:
         raise Exception(f"sqlite3 filter error: {str(error)}")
     
@@ -237,7 +253,10 @@ class Filter(Enum):
     STANDARD = " = *"
     BOOL_T   = "* = 1"
     BOOL_F   = "* = 0"
-    NULL     = "* IS NULL" 
+    NULL     = "* IS NULL"
+    LIKE     = " LIKE '%*%'"
+    HAS      = "substr(*, 1, instr(*, '_') - 1) = '*'"
+    SUBSTR   = "instr(*, '__') > 0 AND CAST(substr(*, instr(*, '_') + 1, instr(*, '__') - instr(*, '_') - 1) AS INTEGER) = "
 
 def apply_conditions(is_select=False):
     """Apply correct formatting for conditions"""
@@ -281,7 +300,28 @@ def apply_order(func):
     
     return apply
 
-def get_update_clause(self, new_value, id=None):
+def apply_default_values(self, new_record):
+    """Apply default values to a new record before INSERT"""
+    
+    idx, new_record_with_defaults = 0, []
+    for column, meta in self.columns.items():
+        if not isinstance(meta, dict):
+            continue
+            
+        if meta["is_pk"]:
+            continue
+            
+        default = meta["default"]
+        new_record_with_defaults.append(None if (default == 'NULL') else default if (default is not None) else new_record[idx])
+
+        if default is not None:
+            continue
+
+        idx += 1
+    
+    return new_record_with_defaults
+
+def get_update_clause(self, new_values, id=None):
     """Get update clause"""
 
     try:
@@ -298,8 +338,8 @@ def get_update_clause(self, new_value, id=None):
 
         record = list(record)
         
-        update_clause = []
-        for column,value in new_value.items():
+        update_clause, sql_values = [], []
+        for column,value in new_values.items():
 
             # get column_id
             try:
@@ -324,11 +364,13 @@ def get_update_clause(self, new_value, id=None):
 
             # convert to db value
             change = self._return_value(value, type(value))
-        
-            update_clause.append(f"{column.upper()} = {change}")
+            sql_values.append(change)
 
+            update_clause.append(f"{column.upper()} = ?")
+
+            # convert to db value
             record[column_id] = change
-        return ", ".join(update_clause), id, record
+        return ", ".join(update_clause), id, record, sql_values
     
     except Exception as exception:
         raise Exception(f"sqlite3 UPDATE clause error: {str(exception)}")
@@ -412,15 +454,15 @@ class Database():
         return {row[0]:tuple(row[1:]) for row in self.cur}
 
     @apply_conditions()
-    def _update(self, conditions, new_value, id=None):
+    def _update(self, conditions, new_values, id=None):
         """Command UPDATE"""
 
-        update, id, record = get_update_clause(self, new_value, id)
+        update, id, record, sql_values = get_update_clause(self, new_values, id)
 
         # execute command
         try:
             command = f"UPDATE {self.table} SET {update} {conditions};".replace("None", "NULL")
-            self.cur.execute(command)
+            self.cur.execute(command, sql_values)
             self.con.commit()
         except sqlite3.OperationalError:
             raise Exception(f"sqlite3 UPDATE error! faulty command:\n'{command}'")
@@ -432,42 +474,36 @@ class Database():
     def _insert(self, columns, new_record, custom_id=None):
         """Command INSERT"""
         
-        # insert the new record, but add in default values
-        idx, new_record_with_defaults = 0, []
-        for column, meta in self.columns.items():
-            if not isinstance(meta, dict):
-                continue
-            
-            if meta["is_pk"]:
-                continue
-            
-            default = meta["default"]
-            new_record_with_defaults.append(None if default == 'NULL' else default if default is not None else new_record[idx])
-
-            if default is not None:
-                continue
-
-            idx += 1
+        # get a new record with default values
+        new_record_with_defaults = apply_default_values(self, new_record)
 
         # protect from creating duplicates
+        if custom_id and custom_id in self.raw_data:
+            raise IdAlreadyExistsError(f"sqlite3 INSERT error: '{custom_id}' is already in the database")
+        
         if new_record_with_defaults in self.raw_data.values():
             raise Exception(f"sqlite3 INSERT error: {new_record} is already in the database")
 
-        # if not a duplicate
-        sql_values = [self._return_value(value, type(value)) for value in new_record]
-
+        # if autoitterate or the id is given
         if custom_id is None:
             id = self._get_last_id() + 1
+            sql_values, placeholders = [], []
         else:
-            id, sql_values = custom_id, (custom_id, *sql_values)
+            id = custom_id
+            sql_values, placeholders = [custom_id], ["?"] # prepend custom_id to the SQL values
 
+        # prepare the record to be inserted
+        for value in new_record:
+            sql_values.append(self._return_value(value, type(value))) # convert value to the DB format
+            placeholders.append("?")
+        
         columns = ", ".join([column for column,_ in columns]).upper()
-        values  = ", ".join([str(value) for value in sql_values])
+        values  = ", ".join(placeholders)
 
         # execute command
         try:
-            command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});".replace("None", "NULL")
-            self.cur.execute(command)
+            command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});"
+            self.cur.execute(command, sql_values)
             self.con.commit()
         except sqlite3.IntegrityError:
             raise Exception(f"sqlite3 INSERT error: failed to add to the database! command:\n'{command}'")
@@ -502,7 +538,7 @@ class Database():
                       "REAL":   "float", 
                       "NUMERIC":"undefined", # Float or Int
                       "TEXT":   "str",
-                      "BLOB":   "object"}    # Binary Large Object
+                      "BLOB":   "binary_object",}    # Binary Large Object
         
         types_dict.update(types)
 
@@ -547,20 +583,25 @@ class Database():
     def _get_value(self, value, type):
         """ Convert out of DB value """
 
-        if type == "bool":
+        if value is None:
+            return None
+        elif "binary_" in type:
+            if type == "binary_object":
+                value = io.BytesIO(value)
+                value.seek(0)
+                return value
+            return f"{int(value):0{int(type.split('_')[1])}b}"
+        elif type == "bool":
             return bool(value)
         elif type == "datetime":
             return convert_int_to_date(value)
-        elif "binary" in type:
-            return ('{0:0' + type.split("_")[1] + 'b}').format(value)
         elif type == "str":
-            if value:
-                return value.replace("`", "'")
+            return value.replace("`", "'")
         elif "permutation" in type:
             return permutation(value, requirements=type.split('_'))
         return value
     
-    def _return_value(self, value, type):
+    def _return_value(self, value, type, direct_string=True):
         """ Convert to DB value """
 
         try:
@@ -568,17 +609,19 @@ class Database():
         except AttributeError:
             pass
 
-        if type == "bool":
-            value = int(value)
+        if value is None:
+            return None
+        elif type == "bool":
+            return int(value)
         elif type == "datetime":
-            value = convert_date_to_int(value)
-        elif type in ["binary", "str"]: 
-            if is_binary(value):
-                value = int(value, 2)
-            else:
-                return "'" + value.replace("'", "`") + "'"
+            return convert_date_to_int(value)
         elif type == "permutation":
-            value = value.convert_permutation_to_int()
+            return value.convert_permutation_to_int()
+        elif type == "str":
+            if is_binary(value):
+                return int(value, 2)
+            else:
+                return value.replace("'", "`") if direct_string else "'" + value.replace("'", "`") + "'"
         return value
 
 # Database structure
@@ -609,8 +652,20 @@ class Database():
         if not all((columns.values())):
             self.is_shortened = True
 
-        allowed_filters = self._get_imported_columns(columns)
+        allowed_filters = set(self._get_imported_columns(columns))
 
+        replacements = {"below":      "less",
+                        "belowequal": "lessequal",
+                        "upper":      "great",
+                        "upperequal": "greatequal",}
+        
+        allowed_specs = {"less":       "<",
+                         "lessequal":  "<=",
+                         "great":      ">",
+                         "greatequal": ">=",
+                         "inequal":    "<>"}
+
+        text_spec = {"has", "like"}
 
         # set conditions based on the filters
         self.conditions = []
@@ -619,6 +674,7 @@ class Database():
             # specification on certain variables
             try:
                 key, spec = key.split("__")
+                spec = spec.split("_")[0]
             except ValueError:
                 key, spec = next(iter(key.split("__"))), None
             
@@ -626,15 +682,13 @@ class Database():
             if key not in allowed_filters:
                 raise Exception(f"sqlite3 filter error: filter '{key}' can't be applied to the requested data/table!")
             
-            
             type = columns[key]["type"]
-            spec_is_numeric = True if spec and spec != "inequal" else False
-            
+
             # if value has the correct type apply conditions
             if type != "bool":
                 
-                # int / float / undefined / datetime / binary
-                if type not in ["str", "permutation"]:
+                # int / float / undefined / datetime / binary / permutation / binary_object
+                if type != "str":
                     if type == "int":
 
                         # except accepted keywords
@@ -652,37 +706,45 @@ class Database():
                         elif isinstance(value, str):
                             raise Exception(f"sqlite3 filter error: '{value}' is not an accepted keyword!")
 
-                    check_type(key, value, type)
-                
-                # string / permutation
-                else:
-                    if "permutation" in type:
+                    elif "permutation" in type:
                         permutation = permutation(0, requirements=type.split('_'))
                         permutation.instance = value
                         value = permutation
-                
-                    check_type(key, value, type, req_numeric=spec_is_numeric)
 
-                self.conditions.append(key.upper() + Filter.STANDARD.value.replace("*", str(self._return_value(value, type))))
+                    check_type(key, value, type, spec, required={"is_numeric":True,
+                                                                 "is_text":   False})
+                    
+                    self.conditions.append(key.upper() + Filter.STANDARD.value.replace("*", str(self._return_value(value, type))))
+                
+                # string
+                else:                
+                    if spec not in text_spec:
+                        type = "int"
+
+                    check_type(key, value, type, spec, required={"is_numeric":False,
+                                                                 "is_text":   True})
+                    
+                    if spec:
+                        if spec not in text_spec:
+                            self.conditions.append(Filter.SUBSTR.value.replace("*", key.upper()) + str(value))
+                        else:
+                            if spec == "has":
+                                self.conditions.append(Filter.HAS.value.replace("*", key.upper(), 2).replace("*", value))
+                            else:
+                                self.conditions.append(key.upper() + Filter.LIKE.value.replace("*", value))
+                    else:
+                        self.conditions.append(key.upper() + Filter.STANDARD.value.replace("*", str(self._return_value(value, type, direct_string=False))))
 
             # bool
-            elif type == "bool" and check_type(key, value, type, req_numeric=spec_is_numeric):
+            elif type == "bool" and check_type(key, value, type, spec, required={"is_numeric":True,
+                                                                                 "is_text":   False}):
                 value_filter = Filter.BOOL_T if value else Filter.BOOL_F
                 self.conditions.append(value_filter.value.replace("*", key.upper()))
             
             
             # apply specification
-            if spec:
-                if spec == "less":
-                    self.conditions[-1] = self.conditions[-1].replace("=", "<")
-                elif spec == "lessequal":
-                    self.conditions[-1] = self.conditions[-1].replace("=", "<=")
-                elif spec == "great":
-                    self.conditions[-1] = self.conditions[-1].replace("=", ">")
-                elif spec == "greatequal":
-                    self.conditions[-1] = self.conditions[-1].replace("=", ">=")
-                elif spec == "inequal":
-                    self.conditions[-1] = self.conditions[-1].replace("=", "<>")
+            if spec and spec not in text_spec:
+                self.conditions[-1] = self.conditions[-1].replace("=", allowed_specs[replacements.get(spec, spec)])
 
 
         # set order in columns
@@ -773,6 +835,12 @@ class Database():
     # if with @sql_full_table_validator but need id
     def _get_conditions(self, id):
         return [self._get_id_column().upper() + Filter.STANDARD.value.replace("*", str(id))]
+    
+    @staticmethod
+    def _get_filename_short(filename):
+        if "__" in filename:
+            return filename.split("__")[1]
+        return filename
     
     @classmethod
     def _get_joined_table_name(cls):
