@@ -1,3 +1,4 @@
+from src.db_classes import Images
 from src.functions import disable_after, turn_limit, print_suitcase, print_house_members
 from src.variables import houses_names_list, pets
 
@@ -69,6 +70,36 @@ class DisciplinesView(View):
             await self.parent_view.respond(interaction, choice_idx=matching_index)
 
 
+# yes/no confirmation
+class YesNoView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+        self.trigger = None
+    
+    def break_interaction(func):
+        async def response(self, interaction: Interaction, button: Button):
+            
+            # call the actual button handler
+            await func(self, interaction, button)
+
+            # after interaction stop
+            await interaction.response.defer()
+            self.stop()
+        
+        return response
+
+    @button(label="YES",  style=ButtonStyle.grey, emoji="✅", custom_id="yes")
+    @break_interaction
+    async def answer_yes(self, interaction: Interaction, button: Button):
+        self.trigger = True
+
+    @button(label="NO",  style=ButtonStyle.grey, emoji="⛔", custom_id="no")
+    @break_interaction
+    async def answer_no(self, interaction: Interaction, button: Button):
+        self.trigger = False
+
+
 # questions in a dropdown select
 class QuestionnaireView(View):
     def __init__(self, options):
@@ -96,10 +127,8 @@ class QuestionnaireView(View):
 
 # view pets of each level
 class PetsView(View):
-    def __init__(self, channel, info):
+    def __init__(self, info):
         super().__init__(timeout=None)
-
-        self.channel  = channel
 
         current_level = info.pop("level")
         self.info     = info
@@ -112,10 +141,13 @@ class PetsView(View):
         else:
             self.max_pet = len(pets)
             self.pet     = 0
+
+        self.images = Images
     
     # print a new pet
     async def print_pet(self, interaction):
-        await interaction.response.send_message(embed=await print_suitcase(channel=self.channel, info=self.info, level=self.pet), view=self, ephemeral=True)
+        embed, file = await print_suitcase(images=self.images, info=self.info, level=self.pet)
+        await interaction.response.send_message(embed=embed, file=file, view=self, ephemeral=True)
 
     # print a new pet
     def cooldown_interaction(func):

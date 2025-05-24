@@ -1,8 +1,9 @@
 import src.variables as vars
 
 from src.body import bot
+from src.db import IdAlreadyExistsError
 from src.db_classes import *
-from src.functions import CustomHousecup, standard_response, send_webhook, get_avatar, get_level_change, draw_infocard, create_leaderboard, print_portkey, print_house_members, print_suitcase
+from src.functions import CustomHousecup, standard_response, send_webhook, get_image, get_avatar, draw_infocard, create_leaderboard, print_portkey, print_house_members, print_suitcase
 from src.tasks import print_notification
 from src.views import *
 
@@ -57,7 +58,7 @@ async def restore_db(interaction:Interaction):
 @bot.tree.command(name="postpone")
 @standard_response(silent=True)
 async def postpone_club_event_24h(interaction:Interaction):
-    ''' Postpone the next Club Event by 24h '''
+    ''' Postpone the next Club Event by 24h in DB '''
     
     trigger_club_events = ExtraVariable(name="trigger_club_events")
 
@@ -70,7 +71,7 @@ async def postpone_club_event_24h(interaction:Interaction):
 @bot.tree.command(name="set_maintenance")
 @standard_response(silent=True)
 async def set_maintenance_base_date(interaction:Interaction, month:Literal[tuple(vars.months.keys())], day:int): # type: ignore
-    ''' Set the base Date for Maintenance '''
+    ''' Set the base Date for Maintenance in DB '''
 
     new_date=datetime(year=datetime.now().year, month=vars.months[month], day=day)
 
@@ -83,19 +84,21 @@ async def set_maintenance_base_date(interaction:Interaction, month:Literal[tuple
 
 
 @bot.tree.command(name="add_disciplines")
-@standard_response()
+@standard_response(silent=True)
 async def add_disciplines(interaction:Interaction):
-    ''' Add House Cup disciplines '''
+    ''' Add House Cup disciplines to DB '''
 
     REQUIRED_OPTIONS = 4
     
     # invert dictionary
     options = [SelectOption(label=value, value=key) for key,value in vars.housecup_disciplines_names.items()]
 
+    await interaction.response.send_message(f"Preper to pick {REQUIRED_OPTIONS} times!", ephemeral=True)
+
     all_picked = []
     for idx in range(1, REQUIRED_OPTIONS+1):
         view = DisciplinesView(options)
-        message = await interaction.channel.send(content=f"Pick the {idx}. discipline:", view=view)
+        await interaction.followup.send(content=f"{idx}. Discipline:", view=view, ephemeral=True)
         await view.wait()
 
         # if nothing was picked
@@ -103,9 +106,44 @@ async def add_disciplines(interaction:Interaction):
 
         # dropdown list gets smaller with each picked option
         all_picked.append(options.pop(picked).value)
-        await message.delete()
     
     ExtraVariable(name="housecup_disciplines").change(to=tuple(all_picked))
+
+    await interaction.followup.send("The House Cup disciplines have been **added**!", ephemeral=True)
+
+
+@bot.tree.context_menu(name="Add Image")
+@standard_response(silent=True)
+async def add_image(interaction:Interaction, message:Message):
+    ''' Add Image to DB '''
+    
+    if not (filename := message.content.strip()):
+        raise Exception("the Filename was not provided")
+    
+    if len(message.attachments) == 1:
+        url = message.attachments[0].url
+    elif len(message.attachments) <1:
+        raise Exception("no Image is attached")
+    else:
+        raise Exception("multiple Images are attached. Leave only one to save")
+
+    images = Images()
+    try:
+        images.add(filename, image=get_image(url))
+    
+    # except it is already in the Database, ask if to overwrite
+    except IdAlreadyExistsError:
+        view = YesNoView()
+        await interaction.response.send_message("The Filename already exists.\nAre you sure you wanna overwrite the Image?", view=view, ephemeral=True)
+        await view.wait()
+
+        if view.trigger:
+            images.add(filename, image=get_image(url), replace=True)
+            return await interaction.followup.send("The Image has been **changed**!", ephemeral=True)
+        else:
+            return await interaction.followup.send("No action taken!", ephemeral=True)
+            
+    await interaction.response.send_message("The Image has been **added**!", ephemeral=True)
 
 ############################################################################################################
 
@@ -124,6 +162,7 @@ async def send_as(interaction:Interaction, member:Optional[Member], option:Optio
         raise Exception("pick either a 'member' or an 'option', not both")
     else:
         raise Exception("pick a 'member' or an 'option'")
+
 
 @bot.tree.command(name="send_notification")
 @standard_response()
@@ -175,7 +214,6 @@ async def accept_portkey(interaction:Interaction, message:Message):
     
     SERVER = bot.server
     Portkeys().add(server=SERVER, message=message)
-
 
 @bot.tree.command(name="accept_portkey")
 @standard_response()
@@ -290,6 +328,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool=True, wi
 
             await custom_housecup_message.edit(content="", embed=custom_housecup_embed)
 
+
 @bot.tree.command(name="tweak_xp")
 @standard_response(silent=True)
 async def tweak_xp_manually(interaction: Interaction, member:Member, action:Literal["Add", "Subtract", "Set"]="Add", amount:int=10, comment:Optional[str]=None):
@@ -315,6 +354,7 @@ async def tweak_xp_manually(interaction: Interaction, member:Member, action:Lite
         await interaction.response.send_message(f"User {member.nick or member.global_name} has been **{action}**!", ephemeral=True)
         await CHANNEL.send(content=log)
 
+
 @bot.tree.command(name="reset_xp")
 @standard_response(silent=True)
 async def reset_xp(interaction: Interaction, member:Member):
@@ -328,6 +368,7 @@ async def reset_xp(interaction: Interaction, member:Member):
 
     await interaction.response.send_message(f"User {member.nick or member.global_name} has been **reseted**!", ephemeral=True)
     await CHANNEL.send(content=f"**{member.nick or member.global_name}** - points reseted! XP: **0**")
+
 
 @bot.tree.command(name="change_lb")
 @standard_response(silent=True)
@@ -422,9 +463,6 @@ async def questionnaire_leaderboard(interaction:Interaction, question_idx:Option
 async def scamander_suitcase(interaction:Interaction, all_pets:Optional[bool]):
     ''' Prints a list of all your caught Pets '''
 
-    SERVER  = bot.server
-    channel = SERVER.get_channel(channel_ids["assets"])
-
     member = interaction.user
 
     if all_pets and member.id not in {385899007991480321, 1207422967722811465}:
@@ -448,7 +486,7 @@ async def scamander_suitcase(interaction:Interaction, all_pets:Optional[bool]):
         else:
             info["add_s"] = True
 
-    await PetsView(channel, info).print_pet(interaction)
+    await PetsView(info).print_pet(interaction)
 
 
 @bot.tree.command(name="house_members")

@@ -45,7 +45,7 @@ else:
 @get_today()
 async def morning_reminder(bot, today):
     DB = bot.db
-    SERVER = bot.get_guild(vars.server_id)
+    SERVER = bot.server
     
     if not vars.test_bot["test_tasks"]:
         birthdays = Portkeys(message_id="unarchived", birthday=datetime(year=2000, month=today.month, day=today.day), specified_columns=["user_id", "message_id", "birthday"]).get(multiple=True)
@@ -65,29 +65,32 @@ async def morning_reminder(bot, today):
 # weekly_cards reminder:
 @tasks.loop(time=time_trigger["weekly_cards"])
 @get_today()
-async def weekly_cards_reminder(server, today):
-    
+async def weekly_cards_reminder(bot, today):
+    SERVER = bot.server
+
     # trigger on monday, wednesday and friday
     if not vars.test_bot["test_tasks"]:
         if today.weekday() == 0:
-            await print_notification(server, event_name="Card - Matagot", date=today)
+            await print_notification(SERVER, event_name="Card - Matagot", date=today)
         
         elif today.weekday() == 2:
-            await print_notification(server, event_name="Card - Book of Monsters", date=today)
+            await print_notification(SERVER, event_name="Card - Book of Monsters", date=today)
         
         elif today.weekday() == 4:
-            await print_notification(server, event_name="Card - Cornish Pixies", date=today)
+            await print_notification(SERVER, event_name="Card - Cornish Pixies", date=today)
     
     else:
-        await print_notification(server, event_name="Card - Matagot", date=today)
-        await print_notification(server, event_name="Card - Book of Monsters", date=today)
-        await print_notification(server, event_name="Card - Cornish Pixies", date=today)
+        await print_notification(SERVER, event_name="Card - Matagot", date=today)
+        await print_notification(SERVER, event_name="Card - Book of Monsters", date=today)
+        await print_notification(SERVER, event_name="Card - Cornish Pixies", date=today)
 
 
 # housecup reminder:
 @tasks.loop(time=time_trigger["housecup"])
 @get_today()
-async def housecup_reminder(server, today):
+async def housecup_reminder(bot, today):
+    SERVER = bot.server
+    
     housecup_disciplines = ExtraVariable(name="housecup_disciplines")
     housecup_reset = ExtraVariable(name="housecup_reset")
 
@@ -96,13 +99,13 @@ async def housecup_reminder(server, today):
     if (vars.test_bot["test_tasks"] or delta.days % 14 == 0):
         discipline = housecup_disciplines.get()[int(delta.days / 14) % 4]
 
-        await print_notification(server, event_name="Housecup", variables=[discipline], date=today)
+        await print_notification(SERVER, event_name="Housecup", variables=[discipline], date=today)
 
         if (not vars.test_bot["test_tasks"] and housecup_disciplines.get()[3] == discipline):
             housecup_reset.change(to=True)
 
     # reset to default (0, 1, 2, 3)    
-    elif (delta.days % 14 == 2 and housecup_reset.get()):
+    elif (delta.days % 14 == 9 and housecup_reset.get()):
         housecup_disciplines.change(to=(0, 1, 2, 3))
         housecup_reset.change(to=False)
 
@@ -110,7 +113,8 @@ async def housecup_reminder(server, today):
 # club_events reminder:
 @tasks.loop(time=time_trigger["club_events"])
 @get_today()
-async def club_events_reminder(server, today):
+async def club_events_reminder(bot, today):
+    SERVER = bot.server
 
     # trigger every workday
     if (vars.test_bot["test_tasks"] or today.weekday() not in [5, 6]):
@@ -119,7 +123,7 @@ async def club_events_reminder(server, today):
         trigger_club_events = ExtraVariable(name="trigger_club_events")
         
         if trigger_club_events.get():
-            await print_notification(server, event_name="Club Events", date=today)
+            await print_notification(SERVER, event_name="Club Events", date=today)
         
         # default True
         else:
@@ -130,10 +134,10 @@ async def club_events_reminder(server, today):
         
         # delete the previous ones
         if not vars.test_bot["test_tasks"]:
-            channel = server.get_channel(channel_ids["announcements"])
+            channel = SERVER.get_channel(channel_ids["announcements"])
             [await message.delete() async for message in channel.history(after=(today - timedelta(days=2))) if (message.author.name == "Prof. Snape" and message.content == "Mention: <@&1314983531050569828>")]
         
-        message = await print_notification(server, event_name="Club Points", date=today)
+        message = await print_notification(SERVER, event_name="Club Points", date=today)
         
         # if it is Sunday delete it after reset
         if not vars.test_bot["test_tasks"] and today.weekday() == 6:
@@ -149,22 +153,24 @@ async def club_events_reminder(server, today):
 # game_midnight reminder:
 @tasks.loop(time=time_trigger["game_midnight"])
 @get_today()
-async def game_midnight_reminder(server, today):
+async def game_midnight_reminder(bot, today):
+    SERVER = bot.server
 
     # trigger every 2 weeks from base date
     delta = datetime(year=today.year, month=today.month, day=today.day) - ExtraVariable(name="base_date_maintenance").get()
     if (vars.test_bot["test_tasks"] or delta.days % 14 == 0):
-        await print_notification(server, event_name="Maintenance", date=today)
+        await print_notification(SERVER, event_name="Maintenance", date=today)
 
 
 # midnight reminders
 @tasks.loop(time=time_trigger["midnight"])
 @get_today()
-async def midnight_reminder(server, today):
-    
+async def midnight_reminder(bot, today):
+    SERVER = bot.server
+
     # trigger on sunday (FOR STAFF ONLY!)
     if (vars.test_bot["test_tasks"] or today.weekday() == 6):        
-        await print_notification(server, event_name="Rankings", date=today)
+        await print_notification(SERVER, event_name="Rankings", date=today)
 
 
 # user create task

@@ -3,6 +3,8 @@ from src.functions import parse_xp_amount, parse_portkey_data
 
 import copy
 
+from discord.file import File
+
 
 # Tables
 ############################################################################################################
@@ -23,7 +25,7 @@ class Experience(Database):
         if is_new:
             self._insert(new_record=tuple(experience.values()), custom_id=user_id)
         else:
-            self._update(conditions=self._get_conditions(id=user_id), new_value=experience, id=user_id)
+            self._update(conditions=self._get_conditions(id=user_id), new_values=experience, id=user_id)
         
         return experience["xp"]
 
@@ -32,7 +34,7 @@ class Experience(Database):
     @sql_record_exisits_validator()
     def unarchive(self, user_id):
         try:
-            self._update(conditions=self._get_conditions(id=user_id), new_value={"archived":False}, id=user_id)
+            self._update(conditions=self._get_conditions(id=user_id), new_values={"archived":False}, id=user_id)
         except Exception:
             pass
 
@@ -41,7 +43,7 @@ class Experience(Database):
     @sql_record_exisits_validator()
     def archive(self, user_id):
         try:
-            self._update(conditions=self._get_conditions(id=user_id), new_value={"archived":True}, id=user_id)
+            self._update(conditions=self._get_conditions(id=user_id), new_values={"archived":True}, id=user_id)
         except Exception:
             pass
 
@@ -49,7 +51,7 @@ class Experience(Database):
     @sql_full_table_validator
     @sql_record_exisits_validator(not_archived=True)
     def reset(self, user_id):
-        self._update(conditions=self._get_conditions(id=user_id), new_value={"xp":0, "level":0, "progress":0.0}, id=user_id)
+        self._update(conditions=self._get_conditions(id=user_id), new_values={"xp":0, "level":0, "progress":0.0}, id=user_id)
 
     # return Experience
     def get(self, multiple=True):
@@ -75,7 +77,6 @@ class ExperienceInfo(Database):
     
     # add ExperienceInfo
     @sql_full_table_validator
-    @sql_update_with_valid_keys(column_names=["user_id", "pet_ashwinder"])
     def add(self, user_id, pet_ashwinder):
         self._insert(new_record=(pet_ashwinder,), custom_id=user_id)
 
@@ -83,7 +84,7 @@ class ExperienceInfo(Database):
     @sql_only_one_validator
     @sql_update_with_valid_keys(column_names=["username", "pet_from_sea", "pet_dog", "pet_ashwinder", "pet_thestral", "favourite_color", "offset"])
     def change(self, **kwargs):
-        self._update(new_value=kwargs)
+        self._update(new_values=kwargs)
     
     # return ExperienceInfo
     def get(self, multiple=False):
@@ -117,7 +118,7 @@ class ExtraVariable(Database):
             value.instance = to
             to = value
         
-        self._update(new_value={"value":to})
+        self._update(new_values={"value":to})
 
     # return ExtraVariable
     def get(self):
@@ -125,6 +126,37 @@ class ExtraVariable(Database):
         if type(value) == permutation:
             return value.instance
         return value
+
+
+class Images(Database):
+    table = "images"
+
+    @sql_entire_table_init_validator
+    def __init__(self, **kwargs):
+        self.columns  = self._setup_table(**kwargs)
+        self.raw_data = self._select(self.table)
+    
+    # add Image
+    @sql_full_table_validator
+    def add(self, filename, image, replace=False):
+        if replace:
+            self._update(conditions=self._get_conditions(id=f"'{filename}'"), new_values={"data":image}, id=filename)
+        else:
+            self._insert(new_record=(image,), custom_id=filename)
+
+    # return Images
+    def get(self, multiple=False):
+        if multiple:
+            return {filename_short:File(fp=image["data"], filename=f"{filename_short}.png") for image in self._get_values_from_raw_data(self.raw_data, add_id=True) if (filename_short := self._get_filename_short(image["filename"]))}
+        
+        if image := next(iter(self._get_values_from_raw_data(self.raw_data, add_id=True)), None):
+            filename_short = self._get_filename_short(image["filename"])
+            return File(fp=image["data"], filename=f"{filename_short}.png")
+        return None
+
+    # return only Filenames
+    def get_filenames(self):
+        return self._get_specific_value_from_raw_data(self.raw_data, "filename")
 
 
 class Portkeys(Database):
@@ -137,7 +169,6 @@ class Portkeys(Database):
     # add Portkey
     @sql_full_table_validator
     @parse_portkey_data
-    @sql_update_with_valid_keys(column_names=["portkey"])
     def add(self, portkey):
         self._insert(new_record=portkey)
     
@@ -145,14 +176,14 @@ class Portkeys(Database):
     @sql_only_one_validator
     @sql_update_with_valid_keys(column_names=["message_id"])
     def unarchive(self, **kwargs):
-        self._update(new_value=kwargs)
+        self._update(new_values=kwargs)
 
     # archive Portkey (remove message_id)
     @sql_only_one_validator
     def archive(self):
         try:
             message_id = self.get()["message_id"]
-            self._update(new_value={"message_id":None})
+            self._update(new_values={"message_id":None})
             return message_id
         except TypeError:
             return None
@@ -181,7 +212,7 @@ class WelcomeMessages(Database):
     def remove(self, user_id):
         try:
             if deleted_record := self._delete(conditions=self._get_conditions(id=user_id), id=user_id):
-                return self._get_specific_value_from_raw_data(deleted_record, "message_id")
+                return self._get_specific_value_from_raw_data(deleted_record, "message_id")[0]
         except Exception:
             return None
 

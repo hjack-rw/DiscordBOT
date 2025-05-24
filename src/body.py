@@ -47,14 +47,9 @@ class BOT(commands.Bot):
         
         SERVER = self.server = self.get_guild(server_id)
 
-        #game_reset_reminder.start(SERVER)
-        morning_reminder.start(self)
-        weekly_cards_reminder.start(SERVER)
-        housecup_reminder.start(SERVER)
-        club_events_reminder.start(SERVER)
-        game_midnight_reminder.start(SERVER)
-        midnight_reminder.start(SERVER)
-
+        for reminder in [morning_reminder, weekly_cards_reminder, housecup_reminder, club_events_reminder, game_midnight_reminder, midnight_reminder]:
+            if not reminder.is_running():
+                reminder.start(self)
 
         # reactivate WelcomeViews
         for welcome_message in WelcomeMessages(date__greatequal=(datetime.now() - timedelta(days=14)), order=["date-"]).get():

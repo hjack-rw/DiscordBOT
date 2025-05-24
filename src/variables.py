@@ -122,7 +122,7 @@ def notification_dict(is_short=False):
 pets = {
     "0":  {"name": "Flobberworm",                "url": "https://www.hp-lexicon.org/wp-content/uploads/2017/03/flobberworm.jpg"},                                                             #100 xp to finish
     "1":  {"name": "Manticore",                  "url": "https://media.harrypotterfanzone.com/baby-manticore.jpg"},                                                                           #255
-    "2a": {"name": "Cornish Pixie",              "url": "assets__1375819355333595177"},                                                                                                        #475
+    "2a": {"name": "Cornish Pixie",              "url": "attachment://cornish_pixie.png"},                                                                                                           #475
     "2b": {"name": "Lobalug",                    "url": "https://static.wikia.nocookie.net/harrypotter/images/1/1a/Lobalug.png/revision/latest?cb=20171226234304"},
     "3":  {"name": "Gnome",                      "url": "https://i.pinimg.com/736x/7b/42/34/7b4234641bc6118dc878d279fe706540.jpg"},                                                           #770
     "4":  {"name": "Bowtruckle",                 "url": "https://i.pinimg.com/736x/68/81/f5/6881f5322ec892c779b0e0881e67e7f4.jpg"},                                                           #1150
@@ -144,15 +144,15 @@ pets = {
     "16": {"name": "Demiguise",                  "url": "https://i.pinimg.com/736x/f7/a0/17/f7a017f8b16059c7ca2593d6f43fbf19.jpg"},                                                           #15980
     "17": {"name": "Yeti",                       "url": "https://i.pinimg.com/736x/57/74/2d/57742d39a2376de105791fb60de7781f.jpg"},                                                           #18375
     "18a":{"name": "Matagot",                    "url": "https://i.pinimg.com/736x/0d/55/a6/0d55a64539413282c823aaac9da59a1c.jpg"},                                                           #20995
-    "18b":{"name": "Swooping Evil",              "url": "assets__1375818780713812120"},
+    "18b":{"name": "Swooping Evil",              "url": "attachment://swooping_evil.png"},
     "19a":{"name": "Hinkypunk",                  "url": "https://i.pinimg.com/736x/1f/09/0f/1f090fa6b800551606a9788879edd10e.jpg"},                                                           #23850
     "19b":{"name": "Kappa",                      "url": "https://i.pinimg.com/736x/56/9f/d2/569fd22d1677997c4d8889ffdcfc8c16.jpg"},
     "20a":{"name": "Sphinx",                     "url": "https://2.bp.blogspot.com/-P5hI3De5blA/UugVe-7tZsI/AAAAAAAAOUI/pBN_pAx4SyU/s1600/PZO_sphinx_timkingslynne.jpg"},                     #26950
-    "20b":{"name": "Ashwinder",                  "url": "assets__1375817089537015889"},
-    "21": {"name": "Golden Snidget",             "url": "https://i.pinimg.com/736x/25/7e/71/257e7182579a32e8792663fa3da5c71b.jpg"},                                                           #30305
+    "20b":{"name": "Ashwinder",                  "url": "attachment://ashwinder.png"},
+    "21": {"name": "Golden Snidget",             "url": "https://i.pinimg.com/736x/15/d0/c1/15d0c13c0f6a87f9daddc27ed5ae643a.jpg"},                                                           #30305
     "22": {"name": "Augurey",                    "url": "https://cdnb.artstation.com/p/assets/images/images/031/592/281/large/kate-vigdis-.jpg?1621081086"},                                  #33925
-    "23": {"name": "Thunderbird",                "url": "assets__1375504089395363892"},                                                                                                       #37820
-    "24": {"name": "Fire Crab",                  "url": "assets__1375507675336540160"},                                                                                                       #42000
+    "23": {"name": "Thunderbird",                "url": "attachment://thunderbird.png"},                                                                                                       #37820
+    "24": {"name": "Fire Crab",                  "url": "attachment://fire_crab.png"},                                                                                                       #42000
     "25a":{"name": "Blast-Ended Skrewt",         "url": "https://blooloop.com/wp-content/uploads/2019/04/blast-ended-skrewt-small.jpeg"},                                                     #46475
     "25b":{"name": "Dugbog",                     "url": "https://cdnb.artstation.com/p/assets/images/images/075/126/241/large/maike-otto-dugbog-keyvisual-background.jpg?1713815446"},
     "26": {"name": "Erumpent",                   "url": "https://static.wikia.nocookie.net/harrypotter/images/6/61/Erumpent_Concept_Art_FB1.png/revision/latest"},                            #51255
@@ -165,8 +165,8 @@ pets = {
     "30b":{"name": "Thestral",                   "url": "https://i.pinimg.com/736x/73/61/e9/7361e9a0af224c768f17f5deadb07b54.jpg"},
     "31": {"name": "Unicorn",                    "url": "https://contentful.harrypotter.com/usf1vwtuqyxm/7LdBbmsnpgs6mCHpRrnGal/df819e7c91f65eef31fdb7e3f87d1424/unicorn_2_1800x1248.png"},   #80080
     "32a":{"name": "Chimaera",                   "url": "https://i.pinimg.com/736x/ad/ff/e0/adffe0d43f0cf86f67c6442d84ba038c.jpg"},                                                           #86900
-    "32b":{"name": "Giant Squid",                "url": "assets__1375522209954791485"},
-    "33": {"name": "Manticore Mother",           "url": "assets__1375810633571762257"},                                                                                                       #94195
+    "32b":{"name": "Giant Squid",                "url": "attachment://giant_squid.png"},
+    "33": {"name": "Manticore Mother",           "url": "attachment://manticore_mother.png"},                                                                                                       #94195
     "34a":{"name": "Zouwu",                      "url": "https://i.pinimg.com/736x/bb/db/dd/bbdbddecb24b4d30917f7a994dc3c5ca.jpg"},                                                           #101775
     "34b":{"name": "Three-Headed Dog",           "url": "https://i.pinimg.com/736x/44/68/4f/44684f3a9c4d64ba08c48710d9c14f9e.jpg"}, 
     "35": {"name": "Phoenix",                    "url": "https://i.pinimg.com/736x/39/8f/b9/398fb97264ea72317170c0680d696d60.jpg"},                                                           #109750

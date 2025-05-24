@@ -4,7 +4,9 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! make an get from assets function
+#TODO! 
+#-show all filenames
+#-remove a file
 
 #TODO! make get_csv universal
 
