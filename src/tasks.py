@@ -102,7 +102,7 @@ async def housecup_reminder(server, today):
             housecup_reset.change(to=True)
 
     # reset to default (0, 1, 2, 3)    
-    elif (delta.days % 14 == 2 and housecup_reset.get()):
+    elif (delta.days % 14 == 9 and housecup_reset.get()):
         housecup_disciplines.change(to=(0, 1, 2, 3))
         housecup_reset.change(to=False)
 

@@ -453,21 +453,26 @@ class Database():
         if new_record_with_defaults in self.raw_data.values():
             raise Exception(f"sqlite3 INSERT error: {new_record} is already in the database")
 
-        # if not a duplicate
-        sql_values = [self._return_value(value, type(value)) for value in new_record]
-
+        # if autoitterate or the id is given
         if custom_id is None:
             id = self._get_last_id() + 1
+            sql_values, placeholders = [], []
         else:
-            id, sql_values = custom_id, (custom_id, *sql_values)
+            id = custom_id
+            sql_values, placeholders = [custom_id], ["?"] # prepend custom_id to the SQL values
 
+        # prepare the record to be inserted
+        for value in new_record:
+            sql_values.append(self._return_value(value, type(value))) # convert value to the DB format
+            placeholders.append("?")
+        
         columns = ", ".join([column for column,_ in columns]).upper()
-        values  = ", ".join([str(value) for value in sql_values])
+        values  = ", ".join(placeholders)
 
         # execute command
         try:
-            command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});".replace("None", "NULL")
-            self.cur.execute(command)
+            command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});"
+            self.cur.execute(command, sql_values)
             self.con.commit()
         except sqlite3.IntegrityError:
             raise Exception(f"sqlite3 INSERT error: failed to add to the database! command:\n'{command}'")
@@ -552,10 +557,13 @@ class Database():
         elif type == "datetime":
             return convert_int_to_date(value)
         elif "binary" in type:
-            return ('{0:0' + type.split("_")[1] + 'b}').format(value)
+            return f'{int(value):0{int(type.split("_")[1])}b}'
+        elif type == "image":
+            value = io.BytesIO(value)
+            value.seek(0)
+            return value
         elif type == "str":
-            if value:
-                return value.replace("`", "'")
+            return value.replace("`", "'") if value is not None else value
         elif "permutation" in type:
             return permutation(value, requirements=type.split('_'))
         return value
