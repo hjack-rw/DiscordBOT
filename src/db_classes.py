@@ -3,6 +3,8 @@ from src.functions import parse_xp_amount, parse_portkey_data
 
 import copy
 
+from discord.file import File
+
 
 # Tables
 ############################################################################################################
@@ -75,7 +77,6 @@ class ExperienceInfo(Database):
     
     # add ExperienceInfo
     @sql_full_table_validator
-    @sql_update_with_valid_keys(column_names=["user_id", "pet_ashwinder"])
     def add(self, user_id, pet_ashwinder):
         self._insert(new_record=(pet_ashwinder,), custom_id=user_id)
 
@@ -127,6 +128,32 @@ class ExtraVariable(Database):
         return value
 
 
+class Images(Database):
+    table = "images"
+
+    @sql_entire_table_init_validator
+    def __init__(self, **kwargs):
+        self.columns  = self._setup_table(types={"data":"image"}, **kwargs)
+        self.raw_data = self._select(self.table)
+    
+    # add Image
+    @sql_full_table_validator
+    def add(self, filename, image):
+        self._insert(new_record=(image,), custom_id=filename)
+
+    # return Images
+    def get(self, multiple=False):
+        type = self.columns["data"]["type"]
+        
+        if multiple:
+            return {key:File(fp=self._get_value(value, type), filename=f"{key}.png") for key,value in self.raw_data.items()}
+        
+        if item := next(iter(self.raw_data.items()), None):
+            key, value = item
+            return File(fp=self._get_value(value, type), filename=f"{key}.png")
+        return None
+
+
 class Portkeys(Database):
     table = "portkeys"
 
@@ -137,7 +164,6 @@ class Portkeys(Database):
     # add Portkey
     @sql_full_table_validator
     @parse_portkey_data
-    @sql_update_with_valid_keys(column_names=["portkey"])
     def add(self, portkey):
         self._insert(new_record=portkey)
     
