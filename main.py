@@ -7,6 +7,7 @@ if __name__ == '__main__':
 #TODO! 
 #-show all filenames
 #-remove a file
+#-reload xp from db
 
 #TODO! make get_csv universal
 

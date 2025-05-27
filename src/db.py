@@ -447,6 +447,7 @@ class Database():
         # execute command
         try:
             command = f"SELECT {columns} FROM {table} {join} {conditions} {order};"
+            command = re.sub(r'\s+;', ';', command)
             self.cur.execute(command)
         except sqlite3.OperationalError:
             raise Exception(f"sqlite3 SELECT error! faulty command:\n'{command}'")
@@ -718,7 +719,7 @@ class Database():
                 
                 # string
                 else:                
-                    if spec not in text_spec:
+                    if spec and spec not in text_spec:
                         type = "int"
 
                     check_type(key, value, type, spec, required={"is_numeric":False,
