@@ -648,7 +648,7 @@ def create_leaderboard(server, data, custom_housecup):
 
         # get the special role color
         try:
-            if member.roles[-1].name in {"captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"}:
+            if member.roles[-1].name in {"captain", "moderator", "co-captain", "discord-monitor"}:
                 color = member.roles[-1].color.value
             else:
                 color = 5198940
@@ -739,7 +739,7 @@ def print_portkey(member, portkey):
     try:
         roles = {role.name for role in getattr(member, "roles", [])}
 
-        if member.roles[-1].name in {"captain", "moderator", "co-captain", "captain (cross guild)", "co-captain (cross guild)"}:
+        if member.roles[-1].name in {"captain", "moderator", "co-captain", "discord-monitor"}:
             color = member.roles[-1].color.value
         else:
             color = 5198940
