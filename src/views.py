@@ -179,7 +179,7 @@ class MemberView(View):
         
         self.members = members
         self.houses  = houses_names_list()
-        self.groups  = ["gop", "guest", "cross guild"]
+        self.groups  = ["gop", "guest"]#, "cross guild"]
 
         if message is not None:
             self.message = message
@@ -253,6 +253,6 @@ class MemberView(View):
         elif self.filter == 1:
             self.children[2].label = "Guest"
             self.children[2].style = ButtonStyle.green
-        else:
-            self.children[2].label = "Cross Guild"
-            self.children[2].style = ButtonStyle.blurple
+        #else:
+        #    self.children[2].label = "Cross Guild"
+        #    self.children[2].style = ButtonStyle.blurple

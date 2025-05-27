@@ -431,14 +431,14 @@ async def questionnaire_leaderboard(interaction:Interaction, question_idx:Option
             options = [SelectOption(label="Yes", value=True), SelectOption(label="No", value=False)]
             default_value = options[1].value
         else:
-            options = [SelectOption(label="Red", value=0),
+            options = [SelectOption(label="Red",    value=0),
                        SelectOption(label="Orange", value=1),
                        SelectOption(label="Yellow", value=2),
-                       SelectOption(label="Green", value=3),
-                       SelectOption(label="Blue", value=4),
+                       SelectOption(label="Green",  value=3),
+                       SelectOption(label="Blue",   value=4),
                        SelectOption(label="Purple", value=5),
-                       SelectOption(label="White", value=6),
-                       SelectOption(label="Black", value=7),]
+                       SelectOption(label="White",  value=6),
+                       SelectOption(label="Black",  value=7),]
             default_value = options[0].value
 
         view = QuestionnaireView(options)
