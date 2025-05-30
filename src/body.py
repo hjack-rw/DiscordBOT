@@ -30,7 +30,7 @@ class BOT(commands.Bot):
         self.db = Database
         
         #TODO a hybrid connection to DB if hitting peak performance
-        #self.db.connect()
+        #await self.db.reconnect()
         #atexit.register(self.db.disconnect)
 
         self.user_experience    = Experience()

@@ -17,7 +17,7 @@ import requests
 session = requests.Session()
 
 from discord.app_commands.errors import CommandInvokeError
-from discord.errors import NotFound
+from discord.errors import NotFound, DiscordServerError
 from discord.embeds import Embed
 from discord.enums import EntityType, PrivacyLevel
 from discord.file import File
@@ -236,32 +236,50 @@ def get_today():
 
 
 def get_json(url):
-    
-    # create HTTP response object 
-    response = requests.get(url)
-
     try:
-        return json.loads(response.content)
-    except:
+        # create HTTP response object 
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        return response.json()
+    except (requests.RequestException, ValueError):
         raise Exception("no JSON file found")
 
 
 def get_csv(url):
-    
-    # create HTTP response object 
-    response = requests.get(url)
-    content  = response.content.decode('utf-8').replace("\ufeff", "").splitlines()
-
     try:
-        return [{key:int(value) for key,value in row.items() if key != "_"} for row in csv.DictReader(f=content[1:], fieldnames=["_", "_", "user_id", "xp", "_", "_", "_", "_"])]
-    except:
+        # create HTTP response object 
+        response = requests.get(url)
+        response.raise_for_status()
+
+        # decode the csv format
+        decoded = response.content.decode("utf-8-sig")
+        content = csv.DictReader(io.StringIO(decoded))
+
+        # skip empty rows
+        data = []
+        for row in content:
+            if not any(row.values()):
+                continue
+            data.append(row)
+        
+        if not data:
+            raise Exception("CSV is empty or has invalid format")
+        
+        return data
+    except requests.RequestException:
         raise Exception("no CSV file found")
 
 
-def get_image(url):
-    response = session.get(url,)
-    return response.content
-
+def get_image(url, delay=2):
+    while True:
+        try:
+            response = session.get(url, timeout=10)
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.RequestException as error:
+            print(f"Failed to download image from {url}: {error}. Retrying in {delay} seconds...")
+            time.sleep(delay)
 
 async def get_image_from_channel(channel, message_id):
     message = await channel.fetch_message(message_id)
@@ -888,10 +906,12 @@ async def set_event_and_notification(server, event_info, date, event_duration, s
                                                 privacy_level=PrivacyLevel.guild_only,
                                                 entity_type=EntityType.external,
                                                 image=get_image(url=await get_image_from_channel(channel, message_id=event_info["image_id"])))
+        except DiscordServerError:
+            print("Could not create event... Discord API error!")
+        except CommandInvokeError:
+            print("Could not create event... Bad timestamp!")
         except ValueError:
             print("Could not create event... Image not found!")
-        except CommandInvokeError:
-            print("Could not create event... Bad time!")
     
     
     # create notification message

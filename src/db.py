@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from enum import Enum
 
+import asyncio
 import functools
 import inspect
 import io
@@ -387,38 +388,49 @@ class Database():
 
     @classmethod
     def connect(cls):
-        """CONNECT database"""
+        """CONNECT to database"""
 
-        DB_PATH = cls.database_path + cls.database_name
+        DB_PATH = os.path.join(cls.database_path, cls.database_name)
 
         try:
-            cls.con = sqlite3.connect(DB_PATH)
-            cls.cur = cls.con.cursor()
+            return sqlite3.connect(DB_PATH)
         except sqlite3.Error as error:
             raise Exception(f"sqlite3 CONNECT error: {str(error)}!")
     
     @classmethod
     def disconnect(cls):
-        """CLOSE database"""
+        """CLOSE the database"""
 
-        if cls.cur:
-            cls.cur.close()
-        
-        if cls.con:
-            cls.con.close()
+        if getattr(cls, 'con', None):
+            try:
+                cls.con.close()
+            except sqlite3.Error as error:
+                print(f"sqlite3 CLOSE error: {str(error)}!")
+            finally:
+                cls.con = None
+    
+    @classmethod
+    async def reconnect(cls, retry_delay=2):
+        """RECONNECT to database"""
+
+        cls.disconnect()
+
+        while cls.con is None:
+            try:
+                cls.con = cls.connect()
+            except Exception:
+                await asyncio.sleep(retry_delay)
     
     @classmethod
     def run_query(cls, query, params=(), fetch=False):
         """Run a DB Query"""
         
-        DB_PATH = cls.database_path + cls.database_name
-
         if not isinstance(params, (tuple, list)):
             raise Exception("sqlite3 QUERY error: params must be a tuple or list for parameterized queries")
         
         #TODO modify for a hybrid connection
         try:
-            with sqlite3.connect(DB_PATH) as con:
+            with cls.connect() as con:
                 cur = con.cursor()
                 cur.execute(query, params)
                 
@@ -434,11 +446,10 @@ class Database():
     def backup(cls):
         """BACKUP database to a dump file"""
 
-        DB_PATH   = cls.database_path + cls.database_name
         DUMP_PATH = cls.database_path + f"{cls.database_name}-dump"
 
         try:
-            with sqlite3.connect(DB_PATH) as con:
+            with cls.connect() as con:
                 with io.open(DUMP_PATH, mode="w", encoding="utf-8") as file:
                     
                     # iterdump() function
@@ -451,16 +462,14 @@ class Database():
     def restore(cls):
         """Restore database from a dump file"""
 
-        DB_PATH   = cls.database_path + cls.database_name
         DUMP_PATH = cls.database_path + f"{cls.database_name}-dump"
         
         try:
             with open(DUMP_PATH, mode="r", encoding="utf-8") as file:
                 sql_script = file.read()
 
-            with sqlite3.connect(DB_PATH) as con:
+            with cls.connect() as con:
                 con.executescript(sql_script)
-                con.commit()
         except sqlite3.Error as error:
             raise Exception(f"sqlite3 RESTORE error: {str(error)}")
 
