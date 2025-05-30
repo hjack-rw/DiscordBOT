@@ -5,11 +5,9 @@ if __name__ == '__main__':
 
 
 #TODO! 
-#-show all filenames
-#-remove a file
-#-reload xp from db
-
-#TODO! make get_csv universal
+# - show all filenames
+# - remove a file
+# - seperate bdays from portkeys with joined table
 
 #TODO! remove past bot notifications on midnight (if exist), but not SNAPE
 # - also fix DELETE SNAPE!
