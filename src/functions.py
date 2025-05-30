@@ -236,25 +236,38 @@ def get_today():
 
 
 def get_json(url):
-    
-    # create HTTP response object 
-    response = requests.get(url)
-
     try:
-        return json.loads(response.content)
-    except:
+        # create HTTP response object 
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        return response.json()
+    except (requests.RequestException, ValueError):
         raise Exception("no JSON file found")
 
 
 def get_csv(url):
-    
-    # create HTTP response object 
-    response = requests.get(url)
-    content  = response.content.decode('utf-8').replace("\ufeff", "").splitlines()
-
     try:
-        return [{key:int(value) for key,value in row.items() if key != "_"} for row in csv.DictReader(f=content[1:], fieldnames=["_", "_", "user_id", "xp", "_", "_", "_", "_"])]
-    except:
+        # create HTTP response object 
+        response = requests.get(url)
+        response.raise_for_status()
+
+        # decode the csv format
+        decoded = response.content.decode("utf-8-sig")
+        content = csv.DictReader(io.StringIO(decoded))
+
+        # skip empty rows
+        data = []
+        for row in content:
+            if not any(row.values()):
+                continue
+            data.append(row)
+        
+        if not data:
+            raise Exception("CSV is empty or has invalid format")
+        
+        return data
+    except requests.RequestException:
         raise Exception("no CSV file found")
 
 
