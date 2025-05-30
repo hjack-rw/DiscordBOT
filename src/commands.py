@@ -50,6 +50,9 @@ async def restore_db(interaction:Interaction):
     DB = bot.db
     DB.restore()
 
+    # reload XP automatically when DB has been changed
+    bot.user_experience = Experience()
+
     await interaction.response.send_message("The Database was **restored**!", ephemeral=True)
 
 ############################################################################################################
@@ -395,6 +398,16 @@ async def change_leaderboard(interaction: Interaction, member:Member, username:O
     info.change(**all_picked)
 
     await interaction.response.send_message(f"User {member.nick or member.global_name} leaderboard card has been **changed**!", ephemeral=True)
+
+
+@bot.tree.command(name="reload_xp")
+@standard_response(silent=True)
+async def reload_xp(interaction:Interaction):
+    ''' Reload XP data manually if DB has been changed '''
+
+    bot.user_experience = Experience()
+
+    await interaction.response.send_message("The XP data has been **reloaded**!", ephemeral=True)
 
 ############################################################################################################
 
