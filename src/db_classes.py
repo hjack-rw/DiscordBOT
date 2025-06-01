@@ -19,7 +19,7 @@ class Experience(Database):
     # add / subtract / set Experience. also unarchive if done while archived
     @sql_full_table_validator
     @parse_xp_amount
-    @sql_create_connection
+    @sql_create_linked_record
     @sql_update_with_valid_keys(column_names=["pet_ashwinder", "is_new", "user_id", "experience"])
     def tweak(self, is_new, user_id, experience, **kwargs):
         if is_new:
