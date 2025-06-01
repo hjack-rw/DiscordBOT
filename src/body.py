@@ -28,8 +28,10 @@ class BOT(commands.Bot):
         super().__init__(command_prefix="/", intents=Intents.all(), application_id=bot_id)
         
         self.db = Database
-        self.db.connect()
-        atexit.register(self.db.disconnect)
+        
+        #TODO a hybrid connection to DB if hitting peak performance
+        #self.db.connect()
+        #atexit.register(self.db.disconnect)
 
         self.user_experience    = Experience()
         self.user_last_executed = {}

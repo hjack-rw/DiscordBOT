@@ -11,7 +11,7 @@ import sqlite3
 
 
 __all__ = ["sql_full_table_validator", "sql_only_one_validator", "sql_update_with_valid_keys", "sql_record_exisits_validator", "sql_entire_table_init_validator",
-           "sql_create_connection", "permutation", "Filter", "Database"]
+           "sql_create_linked_record", "permutation", "Filter", "Database"]
 
 
 # Data conversions operations
@@ -175,14 +175,14 @@ def check_type(key, value, type, spec, required={"is_numeric":False,
             else:
                 raise Exception(f"'{key}' is binary and has no filters!")
     except Exception as error:
-        raise Exception(f"sqlite3 filter error: {str(error)}")
+        raise Exception(f"sqlite3 FILTER error: {str(error)}")
     
     return True
 
 # Decorators
 ############################################################################################################
 
-def sql_create_connection(func):
+def sql_create_linked_record(func):
     """Create linked table record"""
 
     @functools.wraps(func)
@@ -389,8 +389,10 @@ class Database():
     def connect(cls):
         """CONNECT database"""
 
+        DB_PATH = cls.database_path + cls.database_name
+
         try:
-            cls.con = sqlite3.connect(cls.database_path + cls.database_name)
+            cls.con = sqlite3.connect(DB_PATH)
             cls.cur = cls.con.cursor()
         except sqlite3.Error as error:
             raise Exception(f"sqlite3 CONNECT error: {str(error)}!")
@@ -404,29 +406,63 @@ class Database():
         
         if cls.con:
             cls.con.close()
+    
+    @classmethod
+    def run_query(cls, query, params=(), fetch=False):
+        """Run a DB Query"""
+        
+        DB_PATH = cls.database_path + cls.database_name
+
+        if not isinstance(params, (tuple, list)):
+            raise Exception("sqlite3 QUERY error: params must be a tuple or list for parameterized queries")
+        
+        #TODO modify for a hybrid connection
+        try:
+            with sqlite3.connect(DB_PATH) as con:
+                cur = con.cursor()
+                cur.execute(query, params)
+                
+                if fetch:
+                    return cur.fetchall()
+                
+                con.commit()
+
+        except sqlite3.Error as error:
+            raise Exception(f"sqlite3 QUERY error: {str(error)}")
 
     @classmethod
     def backup(cls):
         """BACKUP database to a dump file"""
 
-        if cls.con:
-            with io.open(file=cls.database_path + f"{cls.database_name}-dump", mode="w", encoding="utf-8") as file: 
-            
-                # iterdump() function
-                for line in cls.con.iterdump():
-                    file.write('%s\n' % line)
-        else:
-            raise Exception("sqlite3 BACKUP error: no active database connection to back up!")
+        DB_PATH   = cls.database_path + cls.database_name
+        DUMP_PATH = cls.database_path + f"{cls.database_name}-dump"
+
+        try:
+            with sqlite3.connect(DB_PATH) as con:
+                with io.open(DUMP_PATH, mode="w", encoding="utf-8") as file:
+                    
+                    # iterdump() function
+                    for line in con.iterdump():
+                        file.write('%s\n' % line)
+        except sqlite3.Error as error:
+            raise Exception(f"sqlite3 BACKUP error: {str(error)}")
     
     @classmethod
     def restore(cls):
         """Restore database from a dump file"""
 
-        with open(file=cls.database_path + f"{cls.database_name}-dump", mode="r", encoding="utf-8") as file:
-            sql_script = file.read()
+        DB_PATH   = cls.database_path + cls.database_name
+        DUMP_PATH = cls.database_path + f"{cls.database_name}-dump"
+        
+        try:
+            with open(DUMP_PATH, mode="r", encoding="utf-8") as file:
+                sql_script = file.read()
 
-        cls.con.executescript(sql_script)
-        cls.con.commit()
+            with sqlite3.connect(DB_PATH) as con:
+                con.executescript(sql_script)
+                con.commit()
+        except sqlite3.Error as error:
+            raise Exception(f"sqlite3 RESTORE error: {str(error)}")
 
 # Basic SQL commands
 ############################################################################################################
@@ -444,15 +480,15 @@ class Database():
             id_column = self._get_id_column()
             join = f"INNER JOIN {self._get_joined_table_name()} USING ({id_column})"
 
-        # execute command
+        # execute query, SELECT
         try:
             command = f"SELECT {columns} FROM {table} {join} {conditions} {order};"
             command = re.sub(r'\s+;', ';', command)
-            self.cur.execute(command)
-        except sqlite3.OperationalError:
-            raise Exception(f"sqlite3 SELECT error! faulty command:\n'{command}'")
-        
-        return {row[0]:tuple(row[1:]) for row in self.cur}
+            rows    = self.run_query(command, fetch=True)
+
+            return {row[0]:tuple(row[1:]) for row in rows}
+        except Exception as error:
+            raise Exception(f"sqlite3 SELECT error! faulty command:\n'{command}'\n{str(error)}")
 
     @apply_conditions()
     def _update(self, conditions, new_values, id=None):
@@ -460,13 +496,12 @@ class Database():
 
         update, id, record, sql_values = get_update_clause(self, new_values, id)
 
-        # execute command
+        # execute query, UPDATE
         try:
             command = f"UPDATE {self.table} SET {update} {conditions};".replace("None", "NULL")
-            self.cur.execute(command, sql_values)
-            self.con.commit()
-        except sqlite3.OperationalError:
-            raise Exception(f"sqlite3 UPDATE error! faulty command:\n'{command}'")
+            self.run_query(query=command, params=sql_values)
+        except Exception as error:
+            raise Exception(f"sqlite3 UPDATE error! faulty command:\n'{command}'\n{str(error)}")
         
         # replace the changed value in record
         self.raw_data[id] = tuple(record)
@@ -501,13 +536,12 @@ class Database():
         columns = ", ".join([column for column,_ in columns]).upper()
         values  = ", ".join(placeholders)
 
-        # execute command
+        # execute query, INSERT
         try:
             command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});"
-            self.cur.execute(command, sql_values)
-            self.con.commit()
-        except sqlite3.IntegrityError:
-            raise Exception(f"sqlite3 INSERT error: failed to add to the database! command:\n'{command}'")
+            self.run_query(query=command, params=sql_values)
+        except Exception as error:
+            raise Exception(f"sqlite3 INSERT error: failed to add to the database! command:\n'{command}'\n{str(error)}")
 
         self.raw_data[id] = tuple(new_record_with_defaults)
 
@@ -520,17 +554,16 @@ class Database():
             command = f"DELETE FROM {self.table} {conditions};"
             record = self.raw_data[id]
             
-            # execute command
-            self.cur.execute(command)
-            self.con.commit()
+            # execute query, DELETE
+            self.run_query(query=command)
             del self.raw_data[id]
         
             # return the deleted record
             return {id: record}
 
         # if doesn't exitst
-        except KeyError:
-            raise Exception(f"sqlite3 DELETE error: no such record in the database! command:\n'{command}'")
+        except (Exception, KeyError) as error:
+            raise Exception(f"sqlite3 DELETE error: no such record in the database! command:\n'{command}'\n{str(error)}")
 
     def _get_columns(self, types={}, omitted_columns=[], specified_columns=[]):
         """Get column names and basic info"""
@@ -543,14 +576,14 @@ class Database():
         
         types_dict.update(types)
 
-        # execute commands
-        self.cur.execute(f"PRAGMA table_info({self.table});")
-        columns = self.cur.fetchall()
+        # execute query, PRAGMA: get column info
+        command = f"PRAGMA table_info({self.table});"
+        columns = self.run_query(query=command, fetch=True)
 
-        # extended the columns with the joined_table
+        # execute query, PRAGMA: extended the column info with the columns from joined_table
         if getattr(self, "extended", False):
-            self.cur.execute(f"PRAGMA table_info({self._get_joined_table_name()});")
-            columns_origin = self.cur.fetchall()
+            command        = f"PRAGMA table_info({self._get_joined_table_name()});"
+            columns_origin = self.run_query(query=command, fetch=True)
         else:
             columns_origin = []
 
@@ -645,7 +678,7 @@ class Database():
 
         # protect from excluding specified
         if omitted_columns in specified_columns:
-            raise Exception(f"sqlite3 filter error: 'specified_columns' and 'omitted_columns' can't overlap!")
+            raise Exception(f"sqlite3 FILTER error: 'specified_columns' and 'omitted_columns' can't overlap!")
         
         
         columns = self._get_columns(types, omitted_columns, specified_columns)
@@ -681,7 +714,7 @@ class Database():
             
 
             if key not in allowed_filters:
-                raise Exception(f"sqlite3 filter error: filter '{key}' can't be applied to the requested data/table!")
+                raise Exception(f"sqlite3 FILTER error: filter '{key}' can't be applied to the requested data/table!")
             
             type = columns[key]["type"]
 
@@ -705,7 +738,7 @@ class Database():
                             continue
                         
                         elif isinstance(value, str):
-                            raise Exception(f"sqlite3 filter error: '{value}' is not an accepted keyword!")
+                            raise Exception(f"sqlite3 FILTER error: '{value}' is not an accepted keyword!")
 
                     elif "permutation" in type:
                         permutation = permutation(0, requirements=type.split('_'))
@@ -769,7 +802,7 @@ class Database():
         
         # protect from excluding specified
         if omitted in specified:
-            raise Exception(f"sqlite3 filter error: 'specified' and 'omitted' can't overlap!")
+            raise Exception(f"sqlite3 FILTER error: 'specified' and 'omitted' can't overlap!")
 
         return_list = []
         for idx, instance in raw.items():
@@ -799,7 +832,7 @@ class Database():
 
         # protect from returning non-existent
         if specified not in columns:
-            raise Exception(f"sqlite3 filter error: '{specified}' not in columns!")
+            raise Exception(f"sqlite3 FILTER error: '{specified}' not in columns!")
         else:
             idx_column = columns.index(specified) - 1
             value_type = self.columns[specified]["type"]
