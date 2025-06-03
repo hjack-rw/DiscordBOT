@@ -4,6 +4,7 @@ from src.tasks import *
 from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test
 from src.views import WelcomeView, MemberView
 
+import asyncio
 import atexit
 
 from datetime import datetime, timedelta
@@ -30,15 +31,34 @@ class BOT(commands.Bot):
         self.db = Database
         
         #TODO a hybrid connection to DB if hitting peak performance
-        #await self.db.reconnect()
-        #atexit.register(self.db.disconnect)
+        #atexit.register(self.disconnect_sync)
 
         self.user_experience    = Experience()
         self.user_last_executed = {}
         self.user_last_reacted  = {}
 
-    async def on_ready(self):
+    # Async initialization goes here
+    async def async_init(self):
+        DB = self.db
+        
+        await DB.disable_journal()
+
+        if await DB.is_empty():
+            await DB.restore()
+
+        #TODO a hybrid connection to DB if hitting peak performance
+        #await self.db.reconnect()
+
+    # Sync function for atexit
+    def disconnect_sync(self):
+        asyncio.run(self.db.disconnect())
+
+    # Start event
+    async def on_ready(self):        
         print(f"{'Deployed' if any(test_bot.values()) else 'Logged on as'} {self.user}!")
+
+        #TODO a hybrid connection to DB if hitting peak performance
+        #await self.async_init()
 
         try:
             synched = await self.tree.sync()

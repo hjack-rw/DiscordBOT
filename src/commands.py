@@ -1,7 +1,7 @@
 import src.variables as vars
 
-from src.body import bot
-from src.db import IdAlreadyExistsError
+from src.body       import bot
+from src.db         import IdAlreadyExistsError
 from src.db_classes import *
 from src.functions import CustomHousecup, standard_response, send_webhook, get_image, get_avatar, draw_infocard, create_leaderboard, print_portkey, print_house_members, print_suitcase
 from src.tasks import print_notification
@@ -37,8 +37,8 @@ else:
 async def backup_db(interaction:Interaction):
     ''' Backup the Database manually '''
 
-    DB = bot.db
-    DB.backup()
+        DB = bot.db
+        DB.backup()
 
     await interaction.response.send_message("The Database was **backed up**!", ephemeral=True)
 
@@ -47,8 +47,9 @@ async def backup_db(interaction:Interaction):
 async def restore_db(interaction:Interaction):
     ''' Restore the Database from backup '''
 
-    DB = bot.db
-    DB.restore()
+        DB = bot.db
+        
+        await DB.restore()
 
     # reload XP automatically when DB has been changed
     bot.user_experience = Experience()
