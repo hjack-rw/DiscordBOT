@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from enum import Enum
 
+import aiosqlite
 import asyncio
 import functools
 import inspect
@@ -11,9 +12,18 @@ import re
 import sqlite3
 
 
-__all__ = ["sql_full_table_validator", "sql_only_one_validator", "sql_update_with_valid_keys", "sql_record_exisits_validator", "sql_entire_table_init_validator",
+__all__ = ["sql_full_table_validator", "sql_only_one_validator", "sql_update_with_valid_keys", "sql_record_exisits_validator",
            "sql_create_linked_record", "permutation", "Filter", "Database"]
 
+
+module_name = "aiosqlite"
+
+def popattr(obj, attr_name, default=None):
+    if hasattr(obj, attr_name):
+        value = getattr(obj, attr_name)
+        delattr(obj, attr_name)
+        return value
+    return default
 
 # Data conversions operations
 ############################################################################################################
@@ -72,11 +82,11 @@ def sql_full_table_validator(func):
     """Validator if the table was loaded fully"""
 
     @functools.wraps(func)
-    def validator(self, *args, **kwargs):
+    async def validator(self, *args, **kwargs):
         if not check_variable(self, variables=["conditions", "is_shortened", "extended"]):
-            return func(self, *args, **kwargs)
+            return await func(self, *args, **kwargs)
         
-        raise Exception(f"sqlite3 table error: can only '{func.__name__}' with fully loaded table that is not extended")
+        raise Exception(f"{module_name} table error: can only '{func.__name__}' with fully loaded table that is not extended")
     
     return validator
 
@@ -84,16 +94,16 @@ def sql_only_one_validator(func):
     """Validate if more than one record was loaded"""
 
     @functools.wraps(func)
-    def validator(self, *args, **kwargs):
+    async def validator(self, *args, **kwargs):
         return_empty = kwargs.pop("return_empty", False)
         
         if not check_variable(self, variables=["is_shortened"]):
             if len(self.raw_data) == 1:
-                return func(self, *args, **kwargs)
+                return await func(self, *args, **kwargs)
             elif return_empty and len(self.raw_data) == 0:
                 return None
         
-        raise Exception(f"sqlite3 table error: can only '{func.__name__}' with one record loaded")
+        raise Exception(f"{module_name} table error: can only '{func.__name__}' with one record loaded")
     
     return validator
 
@@ -102,13 +112,13 @@ def sql_update_with_valid_keys(column_names):
 
     def run(func):
         @functools.wraps(func)
-        def validator(self, *args, **kwargs):
+        async def validator(self, *args, **kwargs):
             valid_keys = [self._get_id_column(), *column_names]
             invalid_keys = [key for key in kwargs if key not in valid_keys]
             if invalid_keys:
-                raise ValueError(f"sqlite3 table error: invalid columns in kwargs: {invalid_keys}")
+                raise ValueError(f"{module_name} table error: invalid columns in kwargs: {invalid_keys}")
             
-            return func(self, *args, **kwargs)
+            return await func(self, *args, **kwargs)
         return validator
     return run
 
@@ -117,31 +127,19 @@ def sql_record_exisits_validator(not_archived=False):
 
     def run(func):
         @functools.wraps(func)
-        def validator(self, *args, **kwargs):
+        async def validator(self, *args, **kwargs):
             try:
                 column_id = self._get_id_column()
                 record = {kwargs[column_id]: self.raw_data[kwargs[column_id]]}
                 
                 if not_archived:
                     if next(iter(self._get_values_from_raw_data(record)))["archived"]:
-                        raise Exception(f"sqlite3 table error: the {column_id.upper()} in question is ARCHIVED")
-                return func(self, *args, **kwargs)
+                        raise Exception(f"{module_name} table error: the {column_id.upper()} in question is ARCHIVED")
+                return await func(self, *args, **kwargs)
             except KeyError:
-                raise Exception(f"sqlite3 table error: no such record in the database")
+                raise Exception(f"{module_name} table error: no such record in the database")
         return validator
     return run
-
-def sql_entire_table_init_validator(func):
-    """Validator for tables that need all rows loaded"""
-
-    @functools.wraps(func)
-    def validator(self, *args, **kwargs):
-        for kwarg in kwargs:
-            if kwarg in ["omitted_columns", "specified_columns"]:
-                raise Exception(f"sqlite3 table error: needs to load all rows for '{self.__class__.__name__}'")
-        return func(self, *args, **kwargs)
-    
-    return validator
 
 def check_type(key, value, type, spec, required={"is_numeric":False,
                                                  "is_text":   False}):
@@ -176,7 +174,7 @@ def check_type(key, value, type, spec, required={"is_numeric":False,
             else:
                 raise Exception(f"'{key}' is binary and has no filters!")
     except Exception as error:
-        raise Exception(f"sqlite3 FILTER error: {str(error)}")
+        raise Exception(f"{module_name} FILTER error: {str(error)}")
     
     return True
 
@@ -187,16 +185,16 @@ def sql_create_linked_record(func):
     """Create linked table record"""
 
     @functools.wraps(func)
-    def decorator(self, *args, **kwargs):
+    async def decorator(self, *args, **kwargs):
         is_new = kwargs.get("is_new", False)
-        result = func(self, *args, **kwargs)
+        result = await func(self, *args, **kwargs)
 
         # if the main table is new
         if is_new:
             
             # check if linked record already exsits
             column_id = self._get_id_column()
-            if self.get_joined_table(**{column_id:kwargs[column_id]}) is None:
+            if await self.get_joined_table(**{column_id:kwargs[column_id]}) is None:
 
                 # create a new kwargs with the gotten key-value pairs
                 needed_kwargs = {param.name: kwargs.get(param.name) for param in inspect.signature(self.joined_table.add).parameters.values() if param.name != "self"}
@@ -208,9 +206,9 @@ def sql_create_linked_record(func):
                     if missing_params:
                         raise Exception("missing required parameters: " + ", ".join(missing_params))
 
-                    self.joined_table().add(**needed_kwargs)
+                    await self.joined_table.initialize().add(**needed_kwargs)
                 except Exception as error:
-                    raise Exception(f"sqlite3 table error: failed to create a link with '{self._get_joined_table_name()}' for '{self.__class__.__name__}'\n Error:{str(error)}")
+                    raise Exception(f"{module_name} table error: failed to create a link with '{self._get_joined_table_name()}' for '{self.__class__.__name__}'\n Error:{str(error)}")
 
         return result
     return decorator
@@ -275,7 +273,7 @@ def apply_conditions(is_select=False):
                     clause = " AND ".join([condition for condition in conditions if all(not re.search(rf"\b{re.escape(col)}\b", condition) for col in extended_columns)])
 
                 if "*" in clause:
-                    raise Exception(f"sqlite3 error applying conditions:\n'{clause}'")
+                    raise Exception(f"{module_name} error applying conditions:\n'{clause}'")
                     
                 kwargs["conditions"] = "WHERE " + clause
             else:
@@ -374,7 +372,7 @@ def get_update_clause(self, new_values, id=None):
         return ", ".join(update_clause), id, record, sql_values
     
     except Exception as exception:
-        raise Exception(f"sqlite3 UPDATE clause error: {str(exception)}")
+        raise Exception(f"{module_name} UPDATE clause error: {str(exception)}")
 
 # SQL connection
 ############################################################################################################
@@ -386,26 +384,35 @@ class Database():
     con = None
     cur = None
 
+    def __init__(self):
+        self.columns  = {}
+        self.raw_data = {}
+
     @classmethod
-    def connect(cls):
+    async def connect(cls):
         """CONNECT to database"""
+
+        if getattr(cls, 'con', None):
+            return cls.con
 
         DB_PATH = os.path.join(cls.database_path, cls.database_name)
 
         try:
-            return sqlite3.connect(DB_PATH)
-        except sqlite3.Error as error:
-            raise Exception(f"sqlite3 CONNECT error: {str(error)}!")
+            cls.con = await aiosqlite.connect(DB_PATH)
+            return cls.con
+        
+        except aiosqlite.Error as error:
+            raise Exception(f"{module_name} CONNECT error: {str(error)}!")
     
     @classmethod
-    def disconnect(cls):
+    async def disconnect(cls):
         """CLOSE the database"""
 
         if getattr(cls, 'con', None):
             try:
-                cls.con.close()
-            except sqlite3.Error as error:
-                print(f"sqlite3 CLOSE error: {str(error)}!")
+                await cls.con.close()
+            except aiosqlite.Error as error:
+                print(f"{module_name} CLOSE error: {str(error)}!")
             finally:
                 cls.con = None
     
@@ -413,34 +420,42 @@ class Database():
     async def reconnect(cls, retry_delay=2):
         """RECONNECT to database"""
 
-        cls.disconnect()
+        await cls.disconnect()
 
         while cls.con is None:
             try:
-                cls.con = cls.connect()
+                cls.con = await cls.connect()
             except Exception:
                 await asyncio.sleep(retry_delay)
     
+    def ensure_connection(func):
+        @functools.wraps(func)
+        async def decorator(cls, *args, **kwargs):
+           
+            # a hybrid connection
+            if not getattr(cls, 'con', None):
+                await cls.connect()
+            return await func(cls, *args, **kwargs)
+        
+        return decorator
+
     @classmethod
-    def run_query(cls, query, params=(), fetch=False):
+    @ensure_connection
+    async def run_query(cls, query, params=(), fetch=False):
         """Run a DB Query"""
         
         if not isinstance(params, (tuple, list)):
-            raise Exception("sqlite3 QUERY error: params must be a tuple or list for parameterized queries")
+            raise Exception(f"{module_name} QUERY error: params must be a tuple or list for parameterized queries")
         
-        #TODO modify for a hybrid connection
         try:
-            with cls.connect() as con:
-                cur = con.cursor()
-                cur.execute(query, params)
-                
+            async with cls.con.execute(query, params) as cur:
                 if fetch:
-                    return cur.fetchall()
-                
-                con.commit()
+                    return await cur.fetchall()
+            
+            await cls.con.commit()
 
-        except sqlite3.Error as error:
-            raise Exception(f"sqlite3 QUERY error: {str(error)}")
+        except aiosqlite.Error as error:
+            raise Exception(f"{module_name} QUERY error: {str(error)}")
 
     @classmethod
     def backup(cls):
@@ -449,12 +464,13 @@ class Database():
         DUMP_PATH = cls.database_path + f"{cls.database_name}-dump"
 
         try:
-            with cls.connect() as con:
+            with sqlite3.connect(DUMP_PATH) as con:
                 with io.open(DUMP_PATH, mode="w", encoding="utf-8") as file:
                     
                     # iterdump() function
                     for line in con.iterdump():
                         file.write('%s\n' % line)
+        
         except sqlite3.Error as error:
             raise Exception(f"sqlite3 BACKUP error: {str(error)}")
     
@@ -468,10 +484,11 @@ class Database():
             with open(DUMP_PATH, mode="r", encoding="utf-8") as file:
                 sql_script = file.read()
 
-            with cls.connect() as con:
+            with sqlite3.connect(DUMP_PATH) as con:
                 con.executescript(sql_script)
         except sqlite3.Error as error:
             raise Exception(f"sqlite3 RESTORE error: {str(error)}")
+
 
 # Basic SQL commands
 ############################################################################################################
@@ -479,7 +496,7 @@ class Database():
     @apply_selected_columns()
     @apply_conditions(is_select=True)
     @apply_order
-    def _select(self, table, columns, conditions, order):
+    async def _select(self, table, columns, conditions, order):
         """Command SELECT"""
 
         join = ""
@@ -493,14 +510,14 @@ class Database():
         try:
             command = f"SELECT {columns} FROM {table} {join} {conditions} {order};"
             command = re.sub(r'\s+;', ';', command)
-            rows    = self.run_query(command, fetch=True)
+            rows    = await self.run_query(command, fetch=True)
 
             return {row[0]:tuple(row[1:]) for row in rows}
         except Exception as error:
-            raise Exception(f"sqlite3 SELECT error! faulty command:\n'{command}'\n{str(error)}")
+            raise Exception(f"{module_name} SELECT error! faulty command:\n'{command}'\n{str(error)}")
 
     @apply_conditions()
-    def _update(self, conditions, new_values, id=None):
+    async def _update(self, conditions, new_values, id=None):
         """Command UPDATE"""
 
         update, id, record, sql_values = get_update_clause(self, new_values, id)
@@ -508,15 +525,15 @@ class Database():
         # execute query, UPDATE
         try:
             command = f"UPDATE {self.table} SET {update} {conditions};".replace("None", "NULL")
-            self.run_query(query=command, params=sql_values)
+            await self.run_query(query=command, params=sql_values)
         except Exception as error:
-            raise Exception(f"sqlite3 UPDATE error! faulty command:\n'{command}'\n{str(error)}")
+            raise Exception(f"{module_name} UPDATE error! faulty command:\n'{command}'\n{str(error)}")
         
         # replace the changed value in record
         self.raw_data[id] = tuple(record)
 
     @apply_selected_columns(skip_when_default=True)
-    def _insert(self, columns, new_record, custom_id=None):
+    async def _insert(self, columns, new_record, custom_id=None):
         """Command INSERT"""
         
         # get a new record with default values
@@ -524,14 +541,14 @@ class Database():
 
         # protect from creating duplicates
         if custom_id and custom_id in self.raw_data:
-            raise IdAlreadyExistsError(f"sqlite3 INSERT error: '{custom_id}' is already in the database")
+            raise IdAlreadyExistsError(f"{module_name} INSERT error: '{custom_id}' is already in the database")
         
         if new_record_with_defaults in self.raw_data.values():
-            raise Exception(f"sqlite3 INSERT error: {new_record} is already in the database")
+            raise Exception(f"{module_name} INSERT error: {new_record} is already in the database")
 
         # if autoitterate or the id is given
         if custom_id is None:
-            id = self._get_last_id() + 1
+            id = (await self._get_last_id()) + 1
             sql_values, placeholders = [], []
         else:
             id = custom_id
@@ -548,14 +565,14 @@ class Database():
         # execute query, INSERT
         try:
             command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});"
-            self.run_query(query=command, params=sql_values)
+            await self.run_query(query=command, params=sql_values)
         except Exception as error:
-            raise Exception(f"sqlite3 INSERT error: failed to add to the database! command:\n'{command}'\n{str(error)}")
+            raise Exception(f"{module_name} INSERT error: failed to add to the database! command:\n'{command}'\n{str(error)}")
 
         self.raw_data[id] = tuple(new_record_with_defaults)
 
     @apply_conditions()
-    def _delete(self, conditions, id):
+    async def _delete(self, conditions, id):
         """Command DELETE"""
 
         # protect from deleting nonexistant
@@ -564,7 +581,7 @@ class Database():
             record = self.raw_data[id]
             
             # execute query, DELETE
-            self.run_query(query=command)
+            await self.run_query(query=command)
             del self.raw_data[id]
         
             # return the deleted record
@@ -572,9 +589,9 @@ class Database():
 
         # if doesn't exitst
         except (Exception, KeyError) as error:
-            raise Exception(f"sqlite3 DELETE error: no such record in the database! command:\n'{command}'\n{str(error)}")
+            raise Exception(f"{module_name} DELETE error: no such record in the database! command:\n'{command}'\n{str(error)}")
 
-    def _get_columns(self, types={}, omitted_columns=[], specified_columns=[]):
+    async def _get_columns(self, types={}, omitted_columns=[], specified_columns=[]):
         """Get column names and basic info"""
         
         types_dict = {"INTEGER":"int",
@@ -587,12 +604,12 @@ class Database():
 
         # execute query, PRAGMA: get column info
         command = f"PRAGMA table_info({self.table});"
-        columns = self.run_query(query=command, fetch=True)
+        columns = await self.run_query(query=command, fetch=True)
 
         # execute query, PRAGMA: extended the column info with the columns from joined_table
         if getattr(self, "extended", False):
             command        = f"PRAGMA table_info({self._get_joined_table_name()});"
-            columns_origin = self.run_query(query=command, fetch=True)
+            columns_origin = await self.run_query(query=command, fetch=True)
         else:
             columns_origin = []
 
@@ -600,7 +617,7 @@ class Database():
         for idx, (_, column_name, type, not_null, default, is_pk) in enumerate(columns + columns_origin):
 
             if "+" in column_name or "-" in column_name:
-                raise Exception(f"sqlite3 table error: '+' / '-' cannot appear in the column name!")
+                raise Exception(f"{module_name} table error: '+' / '-' cannot appear in the column name!")
 
             # skip redefinition if already processed
             if column_name in all_columns:
@@ -671,14 +688,39 @@ class Database():
 ############################################################################################################
 
     @classmethod
-    def get_joined_table(cls, get_kwargs=None, **kwargs):
+    async def get_joined_table(cls, get_kwargs=None, **kwargs):
         get_kwargs = get_kwargs or {}
-        return cls.joined_table(**kwargs).get(**get_kwargs)
+        return await cls.joined_table.initialize(**kwargs).get(**get_kwargs)
     
     def get_one_column(self, column):
         return next(iter(self._get_specific_value_from_raw_data(self.raw_data, column)), None)
 
-    def _setup_table(self, types={}, **kwargs):
+    @classmethod
+    async def initialize(cls, extended=False, **kwargs):
+        if type(self := cls()) is Database:
+            raise Exception(f"{module_name} table error: cannot initialize 'Database' directly!")
+        
+        # validator for tables that need all columns loaded
+        if popattr(self, "all_columns_init_validator", False):
+            if {"omitted_columns", "specified_columns"} & kwargs.keys():
+                raise Exception(f"{module_name} table error: needs to load all rows for '{self.__class__.__name__}'")
+
+        if extended:
+            self.extended = True
+        
+        self.columns  = await self._setup_table(types=popattr(self, "types", {}), **kwargs)
+        self.raw_data = await self._select(self.table)
+
+        # validator for tables that can have only one row loaded at the time
+        if popattr(self, "one_row_init_validator", False):
+            if len(self.raw_data) > 1:
+                raise Exception(f"{self.table} can only be loaded one at the time")
+            elif getattr(self, "is_shortened", False):
+                raise Exception(f"{self.table} can only be loaded fully")
+        
+        return self
+
+    async def _setup_table(self, types={}, **kwargs):
         """Setup filters and sorting of the table"""
 
         omitted_columns   = kwargs.pop("omitted_columns",   [])
@@ -687,10 +729,10 @@ class Database():
 
         # protect from excluding specified
         if omitted_columns in specified_columns:
-            raise Exception(f"sqlite3 FILTER error: 'specified_columns' and 'omitted_columns' can't overlap!")
+            raise Exception(f"{module_name} FILTER error: 'specified_columns' and 'omitted_columns' can't overlap!")
         
         
-        columns = self._get_columns(types, omitted_columns, specified_columns)
+        columns = await self._get_columns(types, omitted_columns, specified_columns)
         
         if not all((columns.values())):
             self.is_shortened = True
@@ -723,7 +765,7 @@ class Database():
             
 
             if key not in allowed_filters:
-                raise Exception(f"sqlite3 FILTER error: filter '{key}' can't be applied to the requested data/table!")
+                raise Exception(f"{module_name} FILTER error: filter '{key}' can't be applied to the requested data/table!")
             
             type = columns[key]["type"]
 
@@ -736,7 +778,7 @@ class Database():
 
                         # except accepted keywords
                         if key == "id" and value in ["last"]:
-                            value = self._get_last_id()
+                            value = await self._get_last_id()
                         
                         elif key == "message_id" and value in ["archived", "unarchived"]:
                             self.conditions.append(Filter.NULL.value.replace("*", key.upper()))
@@ -747,7 +789,7 @@ class Database():
                             continue
                         
                         elif isinstance(value, str):
-                            raise Exception(f"sqlite3 FILTER error: '{value}' is not an accepted keyword!")
+                            raise Exception(f"{module_name} FILTER error: '{value}' is not an accepted keyword!")
 
                     elif "permutation" in type:
                         permutation = permutation(0, requirements=type.split('_'))
@@ -797,9 +839,9 @@ class Database():
             column_name, spec = column[:-1], column[-1]
             
             if spec not in ["+", "-"]:
-                raise Exception(f"sqlite3 order error: the last character has to be '+' / '-' !")
+                raise Exception(f"{module_name} order error: the last character has to be '+' / '-' !")
             elif column_name not in list(columns.keys()):
-                raise Exception(f"sqlite3 order error: the '{column_name}' does not exsit or was not loaded!")
+                raise Exception(f"{module_name} order error: the '{column_name}' does not exsit or was not loaded!")
             
             self.order.append(column_name.upper() + (" ASC" if spec == "+" else " DESC"))
         
@@ -811,7 +853,7 @@ class Database():
         
         # protect from excluding specified
         if omitted in specified:
-            raise Exception(f"sqlite3 FILTER error: 'specified' and 'omitted' can't overlap!")
+            raise Exception(f"{module_name} FILTER error: 'specified' and 'omitted' can't overlap!")
 
         return_list = []
         for idx, instance in raw.items():
@@ -841,7 +883,7 @@ class Database():
 
         # protect from returning non-existent
         if specified not in columns:
-            raise Exception(f"sqlite3 FILTER error: '{specified}' not in columns!")
+            raise Exception(f"{module_name} FILTER error: '{specified}' not in columns!")
         else:
             idx_column = columns.index(specified) - 1
             value_type = self.columns[specified]["type"]
@@ -867,13 +909,14 @@ class Database():
         return next(filter(lambda item: item[1]["is_pk"], self.columns.items()))[0]
 
     def _get_imported_columns(self, columns=None):
-        return [key for key,value in getattr(self, "columns", columns).items() if isinstance(value, dict)]
+        columns = columns if columns is not None else getattr(self, "columns", {})
+        return [key for key,value in columns.items() if isinstance(value, dict)]
     
     def _get_extended_columns(self):
         return [key for key,value in self.columns.items() if isinstance(value, dict) and value["extended"]]
 
-    def _get_last_id(self):
-        return int(next(iter(self._select(table="sqlite_sequence", conditions=["NAME" + Filter.STANDARD.value.replace("*", f"'{self.table}'")]).values()))[0])
+    async def _get_last_id(self):
+        return int(next(iter((await self._select(table="sqlite_sequence", conditions=["NAME" + Filter.STANDARD.value.replace("*", f"'{self.table}'")])).values()))[0])
     
     # if with @sql_full_table_validator but need id
     def _get_conditions(self, id):
