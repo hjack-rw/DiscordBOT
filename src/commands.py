@@ -37,8 +37,8 @@ else:
 async def backup_db(interaction:Interaction):
     ''' Backup the Database manually '''
 
-    DB = bot.db
-    DB.backup()
+        DB = bot.db
+        DB.backup()
 
     await interaction.response.send_message("The Database was **backed up**!", ephemeral=True)
 
@@ -47,8 +47,8 @@ async def backup_db(interaction:Interaction):
 async def restore_db(interaction:Interaction):
     ''' Restore the Database from backup '''
 
-    DB = bot.db
-    DB.restore()
+        DB = bot.db
+        DB.restore()
 
     # reload XP automatically when DB has been changed
     bot.user_experience = Experience()
