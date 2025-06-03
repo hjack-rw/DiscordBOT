@@ -615,7 +615,7 @@ def parse_xp_amount(func):
         else:
             kwargs["experience"]["archived"] = False
 
-        current_xp = func(self, *args, **kwargs)
+        current_xp = await func(self, *args, **kwargs)
 
         # when on server send a level up message
         if server:
@@ -684,7 +684,7 @@ def create_leaderboard(server, data, custom_housecup):
 
 def parse_portkey_data(func):  
     @functools.wraps(func)
-    def parse(self, *args, **kwargs):
+    async def parse(self, *args, **kwargs):
         server  = kwargs.pop("server")
         message = kwargs.pop("message")
         user_id = kwargs.pop("user_id", None)
@@ -744,7 +744,7 @@ def parse_portkey_data(func):
         
         kwargs["portkey"] = (user_id, game_id, from_wb, old_username, multiple_choice, additional_info, birthday, birth_year, extra)
         
-        return func(self, *args, **kwargs)
+        return await func(self, *args, **kwargs)
     return parse
 
 
@@ -814,7 +814,7 @@ async def print_suitcase(images, info, level):
 
     match = re.search(r'attachment://(.*?)\.png', pet["url"])
     if match:
-        return embed, images(filename__has="pet", filename__like=match.group(1)).get()
+        return embed, images.initi(filename__has="pet", filename__like=match.group(1)).get()
     else:
         return embed, MISSING
 

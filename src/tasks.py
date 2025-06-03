@@ -57,7 +57,7 @@ async def morning_reminder(bot, today):
         await print_notification(SERVER, event_name="Birthday", date=today, variables=[birthdays])
     
     try:
-        DB.backup()
+        await DB.backup()
     except Exception as error:
         print("task error, " + error)
 
