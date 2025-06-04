@@ -51,7 +51,7 @@ async def restore_db(interaction:Interaction):
         DB.restore()
 
     # reload XP automatically when DB has been changed
-    bot.user_experience = Experience()
+    bot.user_experience = await Experience.initialize()
 
     await interaction.response.send_message("The Database was **restored**!", ephemeral=True)
 
@@ -63,10 +63,10 @@ async def restore_db(interaction:Interaction):
 async def postpone_club_event_24h(interaction:Interaction):
     ''' Postpone the next Club Event by 24h in DB '''
     
-    trigger_club_events = ExtraVariable(name="trigger_club_events")
+    trigger_club_events = await ExtraVariable.initialize(name="trigger_club_events")
 
     # change the variable value
-    trigger_club_events.change(to=not trigger_club_events.get())
+    await trigger_club_events.change(to=not trigger_club_events.get())
 
     await interaction.response.send_message(f"The next Club Event will be **{'restored' if trigger_club_events.get() else 'skipped'}**!", ephemeral=True)
 
@@ -78,10 +78,10 @@ async def set_maintenance_base_date(interaction:Interaction, month:Literal[tuple
 
     new_date=datetime(year=datetime.now().year, month=vars.months[month], day=day)
 
-    base_date_maintenance = ExtraVariable(name="base_date_maintenance")
+    base_date_maintenance = await ExtraVariable.initialize(name="base_date_maintenance")
 
     # change the variable value
-    base_date_maintenance.change(to=new_date)
+    await base_date_maintenance.change(to=new_date)
 
     await interaction.response.send_message(f"The next Maintenance will trigger **every two weeks** from **{new_date.strftime('%d/%m/%Y')}**", ephemeral=True)
 
@@ -110,7 +110,7 @@ async def add_disciplines(interaction:Interaction):
         # dropdown list gets smaller with each picked option
         all_picked.append(options.pop(picked).value)
     
-    ExtraVariable(name="housecup_disciplines").change(to=tuple(all_picked))
+    await (await ExtraVariable.initialize(name="housecup_disciplines")).change(to=tuple(all_picked))
 
     await interaction.followup.send("The House Cup disciplines have been **added**!", ephemeral=True)
 
@@ -130,9 +130,9 @@ async def add_image(interaction:Interaction, message:Message):
     else:
         raise Exception("multiple Images are attached. Leave only one to save")
 
-    images = Images()
+    images = await Images.initialize()
     try:
-        images.add(filename, image)
+        await images.add(filename, image)
     
     # except it is already in the Database, ask if to overwrite
     except IdAlreadyExistsError:
@@ -141,7 +141,7 @@ async def add_image(interaction:Interaction, message:Message):
         await view.wait()
 
         if view.trigger:
-            images.add(filename, image, replace=True)
+            await images.add(filename, image, replace=True)
             return await interaction.followup.send("The Image has been **changed**!", ephemeral=True)
         else:
             return await interaction.followup.send("No action taken!", ephemeral=True)
@@ -189,8 +189,8 @@ async def send_notification(interaction:Interaction, event:Literal[tuple(vars.no
                 variables.append([member.id])
     
     elif event == "Housecup":
-        housecup_disciplines = ExtraVariable(name="housecup_disciplines")
-        housecup_reset = ExtraVariable(name="housecup_reset")
+        housecup_disciplines = await ExtraVariable.initialize(name="housecup_disciplines")
+        housecup_reset = await ExtraVariable.initialize(name="housecup_reset")
         
         today = today.astimezone(tz=vars.gameserver_timezone)
         delta = datetime(year=today.year, month=today.month, day=today.day, tzinfo=vars.gameserver_timezone) - vars.base_housecup_date
@@ -202,10 +202,10 @@ async def send_notification(interaction:Interaction, event:Literal[tuple(vars.no
 
     if not vars.test_bot["test_command"]: 
         if event == "Welcome":
-            WelcomeMessages().add(user_id=member.id, message_id=message.id, date=datetime.now())
+            await (await WelcomeMessages.initialize()).add(user_id=member.id, message_id=message.id, date=datetime.now())
         elif event == "Housecup":
             if housecup_disciplines.get()[3] == discipline:
-                housecup_reset.change(to=True)
+                await housecup_reset.change(to=True)
 
 ############################################################################################################
 
@@ -216,7 +216,7 @@ async def accept_portkey(interaction:Interaction, message:Message):
     ''' Accept Portkey '''
     
     SERVER = bot.server
-    Portkeys().add(server=SERVER, message=message)
+    await (await Portkeys.initialize()).add(server=SERVER, message=message)
 
 @bot.tree.command(name="accept_portkey")
 @standard_response()
@@ -227,7 +227,7 @@ async def accept_portkey_for_user(interaction:Interaction, message_id:str, membe
 
     try:
         message = await interaction.channel.fetch_message(message_id)
-        Portkeys().add(server=SERVER, message=message, user_id=member.id)
+        await (await Portkeys.initialize()).add(server=SERVER, message=message, user_id=member.id)
     except NotFound:
         raise Exception("what you are trying to accept is not a Portkey")
 
@@ -240,14 +240,14 @@ async def post_portkey(interaction:Interaction, portkey_id:str="last"):
     SERVER = bot.server
     CHANNEL = SERVER.get_channel(channel_ids["portkey-arrival"])
 
-    if (portkey := Portkeys(id=portkey_id)).raw_data:
+    if (portkey := await Portkeys.initialize(id=portkey_id)).raw_data:
         portkey_values = portkey.get()
 
         if portkey_values["message_id"] is None:
             member = SERVER.get_member(portkey_values["user_id"])
 
             message = await CHANNEL.send(embed=print_portkey(member, portkey_values))
-            portkey.unarchive(message_id=message.id)
+            await portkey.unarchive(message_id=message.id)
         else:
             raise Exception("the Portkey was already UNARCHIVED")
     else:
@@ -263,7 +263,7 @@ async def edit_portkey(interaction:Interaction, message:Message):
 
     # check if message is sent by webhook and if it has the correct embed
     if (message.author.id == vars.bot_id) and ("Portkey" in message.embeds[0].footer.text):
-        if portkey_values := Portkeys(message_id=message.id).get():
+        if portkey_values := (await Portkeys.initialize(message_id=message.id)).get():
             member = SERVER.get_member(portkey_values["user_id"])
             
             await message.edit(embed=print_portkey(member, portkey_values))
@@ -287,7 +287,7 @@ async def update_leaderboard(interaction: Interaction, mention_all:bool=True, wi
     CHANNEL = SERVER.get_channel(channel_ids["leaderboard"])
 
     # get leaderboard info
-    if data := ExperienceInfo(extended=True, archived=False, order=["xp-"]).get(multiple=True):
+    if data := (await ExperienceInfo.initialize(extended=True, archived=False, order=["xp-"])).get(multiple=True):
 
         # clear the channel
         await CHANNEL.purge(limit=None)
@@ -367,7 +367,7 @@ async def reset_xp(interaction: Interaction, member:Member):
     CHANNEL = SERVER.get_channel(channel_ids["points-log"])
 
     USER_EXPERIENCE = bot.user_experience
-    USER_EXPERIENCE.reset(user_id=member.id)
+    await USER_EXPERIENCE.reset(user_id=member.id)
 
     await interaction.response.send_message(f"User {member.nick or member.global_name} has been **reseted**!", ephemeral=True)
     await CHANNEL.send(content=f"**{member.nick or member.global_name}** - points reseted! XP: **0**")
@@ -378,7 +378,7 @@ async def reset_xp(interaction: Interaction, member:Member):
 async def change_leaderboard(interaction: Interaction, member:Member, username:Optional[str], offset:Optional[bool]):
     ''' Change the Leaderboard properties for User '''
 
-    info = ExperienceInfo(extended=True, user_id=member.id, omitted_columns=["xp", "level", "progress"])
+    info = await ExperienceInfo.initialize(extended=True, user_id=member.id, omitted_columns=["xp", "level", "progress"])
     
     if (is_archived := info.get_one_column("archived")) is None:
         raise Exception(f"User {member.nick or member.global_name} doesn't have a leaderboard card")
@@ -395,7 +395,7 @@ async def change_leaderboard(interaction: Interaction, member:Member, username:O
     if offset is not None:
         all_picked["offset"] = offset
 
-    info.change(**all_picked)
+    await info.change(**all_picked)
 
     await interaction.response.send_message(f"User {member.nick or member.global_name} leaderboard card has been **changed**!", ephemeral=True)
 
@@ -405,7 +405,7 @@ async def change_leaderboard(interaction: Interaction, member:Member, username:O
 async def reload_xp(interaction:Interaction):
     ''' Reload XP data manually if DB has been changed '''
 
-    bot.user_experience = Experience()
+    bot.user_experience = await Experience.initialize()
 
     await interaction.response.send_message("The XP data has been **reloaded**!", ephemeral=True)
 
@@ -418,11 +418,11 @@ async def questionnaire_leaderboard(interaction:Interaction, question_idx:Option
     ''' Answer questions to customize your Pets '''
 
     member = interaction.user
-    info = ExperienceInfo(extended=True, user_id=member.id, omitted_columns=["xp", "level", "progress"])
+    info = await ExperienceInfo.initialize(extended=True, user_id=member.id, omitted_columns=["xp", "level", "progress"])
 
     if (is_archived := info.get_one_column("archived")) is True:
         USER_EXPERIENCE = bot.user_experience
-        USER_EXPERIENCE.unarchive(user_id=member.id)
+        await USER_EXPERIENCE.unarchive(user_id=member.id)
 
     QUESTIONS = 4
     questions = {1: {"description": "Do you enjoy exploring the Black Lake?", "variable": "pet_from_sea"},
@@ -465,10 +465,10 @@ async def questionnaire_leaderboard(interaction:Interaction, question_idx:Option
 
     # TODO! insert without defaults if provided
     if is_archived is None:
-        ExperienceInfo().add(user_id=member.id, pet_ashwinder=not bool({role.name for role in getattr(member, "roles", [])} & {"gop", "guest"}))
-        ExperienceInfo(user_id=member.id).change(**all_picked)
+        await (await ExperienceInfo.initialize()).add(user_id=member.id, pet_ashwinder=not bool({role.name for role in getattr(member, "roles", [])} & {"gop", "guest"}))
+        await (await ExperienceInfo.initialize(user_id=member.id)).change(**all_picked)
     else:
-        info.change(**all_picked)
+        await info.change(**all_picked)
 
 
 @bot.tree.command(name="suitcase")
@@ -487,7 +487,7 @@ async def scamander_suitcase(interaction:Interaction, all_pets:Optional[bool]):
                 "add_s":     True,}
 
     else:
-        info = ExperienceInfo(extended=True, user_id=member.id, omitted_columns=["xp"]).get()
+        info = (await ExperienceInfo.initialize(extended=True, user_id=member.id, omitted_columns=["xp"])).get()
         info["username"]          = member.nick or member.global_name
         info["xp_for_next_level"] = 5 * (info["level"] ** 2) + (50 * info["level"]) + 100
 
@@ -532,7 +532,7 @@ async def is_housecup_this_week(interaction:Interaction):
                           microsecond=0,)
     
     housecup_disciplines_names = vars.housecup_disciplines_names
-    disciplines = ExtraVariable(name="housecup_disciplines").get()
+    disciplines = (await ExtraVariable.initialize(name="housecup_disciplines")).get()
 
     trigger = False
 
