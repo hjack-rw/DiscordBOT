@@ -31,7 +31,7 @@ async def on_member_join(member):
         message = await print_notification(SERVER, event_name="Welcome", variables=[member, image, view])
 
         if not test_bot["test_events"]:
-            WelcomeMessages().add(user_id=member.id, message_id=message.id, date=datetime.now())
+            await (await WelcomeMessages.initialize()).add(user_id=member.id, message_id=message.id, date=datetime.now())
     
         await MEMBERS_VIEW.update_members(members=SERVER.members)
     
@@ -51,18 +51,18 @@ async def on_member_remove(member):
     if not test_bot["test_events"] and not member.bot:
         
         CHANNEL = SERVER.get_channel(channel_ids["portkey-arrival"])
-        if message_id := Portkeys(user_id=member.id).archive(return_empty=True):
+        if message_id := await (await Portkeys.initialize(user_id=member.id)).archive(return_empty=True):
             
             message = await CHANNEL.fetch_message(message_id)
             await message.delete()
 
         CHANNEL = SERVER.get_channel(channel_ids["welcome"])
-        if message_id := WelcomeMessages().remove(user_id=member.id):
+        if message_id := await (await WelcomeMessages.initialize()).remove(user_id=member.id):
             
             message = await CHANNEL.fetch_message(message_id)
             await message.delete()
         
-        USER_EXPERIENCE.archive(user_id=member.id)
+        await USER_EXPERIENCE.archive(user_id=member.id)
 
 
 # Post on Server
