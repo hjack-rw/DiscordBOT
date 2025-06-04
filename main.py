@@ -4,11 +4,6 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! 
-# - show all filenames
-# - remove a file
-# - seperate bdays from portkeys with joined table
-
 #TODO! remove past bot notifications on midnight (if exist), but not SNAPE
 # - also fix DELETE SNAPE!
 
@@ -36,6 +31,12 @@ if __name__ == '__main__':
 
 
 ## CRAZY IDEAS ##
+
+#TODO! image host:
+# - upload file to the server, store only part of the link in db
+# - replace old files on image host
+# - show all filenames
+# - delete file if removed from db
 
 #TODO! a queue for all events this day so if the bot restarts he knows if he has to send something
 # - when they trigger normally just remove them
