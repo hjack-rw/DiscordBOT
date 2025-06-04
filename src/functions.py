@@ -814,7 +814,7 @@ async def print_suitcase(images, info, level):
 
     match = re.search(r'attachment://(.*?)\.png', pet["url"])
     if match:
-        return embed, images.initi(filename__has="pet", filename__like=match.group(1)).get()
+        return embed, (await images.initialize(filename__has="pet", filename__like=match.group(1))).get()
     else:
         return embed, MISSING
 

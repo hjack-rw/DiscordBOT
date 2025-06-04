@@ -48,7 +48,7 @@ async def morning_reminder(bot, today):
     SERVER = bot.server
     
     if not vars.test_bot["test_tasks"]:
-        birthdays = Portkeys(message_id="unarchived", birthday=datetime(year=2000, month=today.month, day=today.day), specified_columns=["user_id", "message_id", "birthday"]).get(multiple=True)
+        birthdays = (await Portkeys.initialize(message_id="unarchived", birthday=datetime(year=2000, month=today.month, day=today.day), specified_columns=["user_id", "message_id", "birthday"])).get(multiple=True)
     else:
         birthdays = [385899007991480321 for _ in range(1)]
 
@@ -91,8 +91,8 @@ async def weekly_cards_reminder(bot, today):
 async def housecup_reminder(bot, today):
     SERVER = bot.server
     
-    housecup_disciplines = ExtraVariable(name="housecup_disciplines")
-    housecup_reset = ExtraVariable(name="housecup_reset")
+    housecup_disciplines = await ExtraVariable.initialize(name="housecup_disciplines")
+    housecup_reset = await ExtraVariable.initialize(name="housecup_reset")
 
     # trigger every 2 weeks from base date
     delta = datetime(year=today.year, month=today.month, day=today.day, tzinfo=vars.gameserver_timezone) - vars.base_housecup_date
@@ -102,12 +102,12 @@ async def housecup_reminder(bot, today):
         await print_notification(SERVER, event_name="Housecup", variables=[discipline], date=today)
 
         if (not vars.test_bot["test_tasks"] and housecup_disciplines.get()[3] == discipline):
-            housecup_reset.change(to=True)
+            await housecup_reset.change(to=True)
 
     # reset to default (0, 1, 2, 3)    
     elif (delta.days % 14 == 9 and housecup_reset.get()):
-        housecup_disciplines.change(to=(0, 1, 2, 3))
-        housecup_reset.change(to=False)
+        await housecup_disciplines.change(to=(0, 1, 2, 3))
+        await housecup_reset.change(to=False)
 
 
 # club_events reminder:
@@ -120,14 +120,14 @@ async def club_events_reminder(bot, today):
     if (vars.test_bot["test_tasks"] or today.weekday() not in [5, 6]):
         
         # and if variable is True
-        trigger_club_events = ExtraVariable(name="trigger_club_events")
+        trigger_club_events = await ExtraVariable.initialize(name="trigger_club_events")
         
         if trigger_club_events.get():
             await print_notification(SERVER, event_name="Club Events", date=today)
         
         # default True
         else:
-            trigger_club_events.change(to=True)
+            await trigger_club_events.change(to=True)
     
     # trigger every weekend
     if (vars.test_bot["test_tasks"] or today.weekday() in [4, 6]):
@@ -157,7 +157,7 @@ async def game_midnight_reminder(bot, today):
     SERVER = bot.server
 
     # trigger every 2 weeks from base date
-    delta = datetime(year=today.year, month=today.month, day=today.day) - ExtraVariable(name="base_date_maintenance").get()
+    delta = datetime(year=today.year, month=today.month, day=today.day) - (await ExtraVariable.initialize(name="base_date_maintenance")).get()
     if (vars.test_bot["test_tasks"] or delta.days % 14 == 0):
         await print_notification(SERVER, event_name="Maintenance", date=today)
 
