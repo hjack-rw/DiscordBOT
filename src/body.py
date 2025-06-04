@@ -8,6 +8,8 @@ import asyncio
 import atexit
 
 from datetime import datetime, timedelta
+
+from discord.app_commands import Group
 from discord.errors import NotFound
 from discord.ext import commands
 from discord.flags import Intents
@@ -55,8 +57,14 @@ class BOT(commands.Bot):
         await self.async_init()
 
         try:
-            synched = await self.tree.sync()
-            print(f"Synched {len(synched)} command(s)")
+            await self.tree.sync()
+            synched  = bot.tree.get_commands()
+
+            groups   = [cmd for cmd in synched if isinstance(cmd, Group)]
+            commands = [cmd for cmd in synched if not isinstance(cmd, Group)]
+
+            print(f"Synched {len(groups)} group(s)")
+            print(f"With {len(commands) + sum(len(group.commands) for group in groups)} command(s) total")
         
         except Exception as error:
             print(error)

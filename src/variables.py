@@ -24,7 +24,9 @@ server_id  = 1221838993071538327
 bot_id     = 1305607183139864669
 webhook_id = 1310623344122531851
 
-channel_sections_ids = {"general":  1221863697337684018,
+channel_sections_ids = {"archive":  1283402898914410567,
+                        "admins":   1221881911958569000,
+                        "general":  1221863697337684018,
                         "guides":   1281188392884768810,
                         "offtopic": 1221914890915287214,}
 
