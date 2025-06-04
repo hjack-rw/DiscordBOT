@@ -33,7 +33,6 @@ class BOT(commands.Bot):
         #TODO a hybrid connection to DB if hitting peak performance
         #atexit.register(self.disconnect_sync)
 
-        self.user_experience    = Experience()
         self.user_last_executed = {}
         self.user_last_reacted  = {}
 
@@ -49,6 +48,8 @@ class BOT(commands.Bot):
         #TODO a hybrid connection to DB if hitting peak performance
         #await self.db.reconnect()
 
+        self.user_experience = await Experience.initialize()
+
     # Sync function for atexit
     def disconnect_sync(self):
         asyncio.run(self.db.disconnect())
@@ -57,8 +58,7 @@ class BOT(commands.Bot):
     async def on_ready(self):        
         print(f"{'Deployed' if any(test_bot.values()) else 'Logged on as'} {self.user}!")
 
-        #TODO a hybrid connection to DB if hitting peak performance
-        #await self.async_init()
+        await self.async_init()
 
         try:
             synched = await self.tree.sync()
@@ -74,7 +74,7 @@ class BOT(commands.Bot):
                 reminder.start(self)
 
         # reactivate WelcomeViews
-        for welcome_message in WelcomeMessages(date__greatequal=(datetime.now() - timedelta(days=14)), order=["date-"]).get():
+        for welcome_message in (await WelcomeMessages.initialize(date__greatequal=(datetime.now() - timedelta(days=14)), order=["date-"])).get():
             try:
                 CHANNEL = SERVER.get_channel(channel_ids["welcome"])
                 
