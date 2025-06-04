@@ -71,7 +71,12 @@ def standard_response(silent: bool=False):
     def run(func: Callable[P, Awaitable[R]]):
         @functools.wraps(func)
         async def response(*args: P.args, **kwargs: P.kwargs) -> R:
-            interaction: Interaction = kwargs.get("interaction") or args[0]
+            if "interaction" in kwargs:
+                interaction = kwargs["interaction"]
+            elif len(args) > 1:
+                interaction = args[1]
+            else:
+                interaction = args[0]
             
             if not silent:
                 await interaction.response.send_message("A wizard must show patience... please, wait for the command to finish!", ephemeral=True)
