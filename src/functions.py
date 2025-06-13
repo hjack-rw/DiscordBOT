@@ -1,39 +1,36 @@
 import src.variables as vars
 
-from datetime import datetime, timedelta
-from functools import reduce
-from PIL import Image, ImageFont, ImageDraw, ImageFilter
-from types import SimpleNamespace
-
-import copy
-import csv
-import functools
-import io
-import json
-import re
-import time
+from copy      import deepcopy
+from csv       import DictReader
+from datetime  import datetime, timedelta
+from functools import reduce, wraps
+from io        import BytesIO, StringIO
+from PIL       import Image, ImageDraw, ImageFilter, ImageFont
+from re        import search, sub
+from time      import mktime, sleep
+from types     import SimpleNamespace
 
 import requests
 session = requests.Session()
 
 from discord.app_commands.errors import CommandInvokeError
-from discord.errors import NotFound, DiscordServerError
-from discord.embeds import Embed
-from discord.enums import EntityType, PrivacyLevel
-from discord.file import File
-from discord.interactions import Interaction
-from discord.utils import MISSING
+from discord.errors              import DiscordServerError, NotFound
+from discord.embeds              import Embed
+from discord.enums               import EntityType, PrivacyLevel
+from discord.file                import File
+from discord.interactions        import Interaction
+from discord.utils               import MISSING
 
-from typing import Callable, Awaitable, TypeVar, ParamSpec
+from typing import Awaitable, Callable, ParamSpec, TypeVar
 P = ParamSpec("P") # parameters
-R = TypeVar("R")   # returns
+R =   TypeVar("R") # returns
 
 
 # SETTINGS
 # for testing
 # vars.test_bot["test_command"] = True # overwrite if needed
-# vars.test_bot["test_events"] = True # overwrite if needed
-# vars.test_bot["test_tasks"] = True # overwrite if needed
+# vars.test_bot["test_events"]  = True # overwrite if needed
+# vars.test_bot["test_tasks"]   = True # overwrite if needed
 
 
 delete_after = {"hours":0, "minutes":0, "seconds":0}
@@ -47,8 +44,8 @@ else:
     channel_ids = vars.channel_ids
 
 headers = {"authorization": f"Bot {vars.bot_token}",
-           "content-type": "application/json",
-           "user-agent": "BOT (http://discord.com, v1.0)",}
+           "content-type":   "application/json",
+           "user-agent":     "BOT (http://discord.com, v1.0)",}
 
 class CustomHousecup:
     def __init__(self, house:str, all_members_count:int):
@@ -69,12 +66,12 @@ class CustomHousecup:
 
 def standard_response(silent: bool=False):
     def run(func: Callable[P, Awaitable[R]]):
-        @functools.wraps(func)
+        @wraps(func)
         async def response(*args: P.args, **kwargs: P.kwargs) -> R:
             if "interaction" in kwargs:
                 interaction = kwargs["interaction"]
             elif len(args) > 1:
-                interaction = args[1]
+                interaction, message = args
             else:
                 interaction = args[0]
             
@@ -90,7 +87,10 @@ def standard_response(silent: bool=False):
                     try:
                         await interaction.followup.send(text, ephemeral=True)
                     except Exception as followup_error:
-                        print(f"Failed to send error follow-up: {followup_error}")
+                        if 'message' in locals():
+                            await message.channel.send(text, delete_after=10)
+                        else:
+                            print(f"Failed to send error follow-up: {followup_error}")
                 else:
                     await interaction.response.send_message(text, ephemeral=True)
         
@@ -99,7 +99,7 @@ def standard_response(silent: bool=False):
 
 
 def disable_after(func):
-    @functools.wraps(func)
+    @wraps(func)
     async def decorator(self, interaction:Interaction, *args, **kwargs):
         await func(self, interaction, *args, **kwargs)
         
@@ -126,22 +126,22 @@ async def wait_till_posted(channel, idx):
 
 
 async def send_command(target_channel_id, app_id, version, id, command, options=[]):
-    payload = {"type":2,
+    payload = {"type":           2,
                "application_id":str(app_id),
-               "guild_id":str(vars.server_id),
-               "channel_id":str(target_channel_id),
-               "session_id":"3794653e1bf277766e6356b596fd495d",
+               "guild_id":      str(vars.server_id),
+               "channel_id":    str(target_channel_id),
+               "session_id":    "3794653e1bf277766e6356b596fd495d",
                "data":{"version":str(version), "id":str(id), "name":command, "type":1, "options": options}}
     
     # overwrite headers
     headers = {"authorization": str(vars.discord_token),
-               "content-type": "application/json",}
+               "content-type":  "application/json",}
 
     response = session.post(url="https://discord.com/api/v9/interactions", json=payload, headers=headers,)
     #print(response)
 
     if response.status_code < 300:
-        time.sleep(vars.wait_for)
+        sleep(vars.wait_for)
     else:
         raise Exception("failed to send command!")
 
@@ -189,7 +189,7 @@ def convert_to_unix_time(date:datetime, mode:str):
     date_tuple = (date.year, date.month, date.day, date.hour, date.minute, date.second)
 
     # convert to unix time
-    return f'<t:{int(time.mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
+    return f'<t:{int(mktime(datetime(*date_tuple).timetuple()))}:{mode}>'
 
 
 # "flip through" a list
@@ -209,7 +209,7 @@ def catch_error(dict:dict, keys:list):
 
 def remove_extra_characters(string:str, is_id:bool=False):
     if is_id:
-        return re.sub(r'''\D''', "", string)
+        return sub(r'''\D''', "", string)
     else:
         return replace_multiple(string.lstrip(" ").rstrip(" "), [("\r", ""), ("\n", "")], self_idx=False)
 
@@ -223,7 +223,7 @@ def parse_multiple_possibilities(value:str):
 
 def get_today():
     def run(func):
-        @functools.wraps(func)
+        @wraps(func)
         async def insert_today(*args, **kwargs):
             func_name = func.__name__
             if not func_name.endswith("_reminder"):
@@ -259,7 +259,7 @@ def get_csv(url):
 
         # decode the csv format
         decoded = response.content.decode("utf-8-sig")
-        content = csv.DictReader(io.StringIO(decoded))
+        content = DictReader(StringIO(decoded))
 
         # skip empty rows
         data = []
@@ -284,7 +284,7 @@ def get_image(url, delay=2):
             return response.content
         except requests.exceptions.RequestException as error:
             print(f"Failed to download image from {url}: {error}. Retrying in {delay} seconds...")
-            time.sleep(delay)
+            sleep(delay)
 
 async def get_image_from_channel(channel, message_id):
     message = await channel.fetch_message(message_id)
@@ -430,7 +430,7 @@ def draw_infocard(new_user, all_members_count):
     url = get_avatar(user=new_user)
 
     # download avatar
-    avatar = Image.open(io.BytesIO(get_image(url=url)))
+    avatar = Image.open(BytesIO(get_image(url=url)))
     
     # scaling
     avatar = scale_image(base_width=220, image=avatar)
@@ -466,7 +466,7 @@ def draw_infocard(new_user, all_members_count):
 
     
     ## save and return file ##
-    bytes = io.BytesIO()
+    bytes = BytesIO()
     background.save(bytes, format="PNG")
     bytes.seek(0)
     
@@ -475,7 +475,7 @@ def draw_infocard(new_user, all_members_count):
 
 def draw_leaderboard(user, rank, house, static, is_bytes=False):
     background, profile_border, full_bar, bar_mask, marker, fonts = static
-    background = copy.deepcopy(background)
+    background = deepcopy(background)
 
 
     ## profile picture ##
@@ -486,7 +486,7 @@ def draw_leaderboard(user, rank, house, static, is_bytes=False):
         avatar = Image.new(mode="L", size=xy, color=0)
     else:
         # download avatar
-        avatar = Image.open(io.BytesIO(get_image(url=user["avatar"])))
+        avatar = Image.open(BytesIO(get_image(url=user["avatar"])))
         
         # scaling
         avatar = scale_image(base_width=xy[0], image=avatar)
@@ -568,7 +568,7 @@ def draw_leaderboard(user, rank, house, static, is_bytes=False):
     
     
     ## save and return file ##
-    bytes = io.BytesIO()
+    bytes = BytesIO()
     background.save(bytes, format="PNG")
     bytes.seek(0)
     
@@ -579,7 +579,7 @@ def draw_leaderboard(user, rank, house, static, is_bytes=False):
 ############################################################################################################
 
 def parse_xp_amount(func):
-    @functools.wraps(func)
+    @wraps(func)
     async def parse(self, *args, **kwargs):
         server = kwargs.pop("server")
         member = kwargs.pop("member", SimpleNamespace(id=None))
@@ -693,7 +693,7 @@ def create_leaderboard(server, data, custom_housecup):
 ############################################################################################################
 
 def parse_portkey_data(func):  
-    @functools.wraps(func)
+    @wraps(func)
     async def parse(self, *args, **kwargs):
         server  = kwargs.pop("server")
         message = kwargs.pop("message")
@@ -731,13 +731,15 @@ def parse_portkey_data(func):
                     multiple_choice = parse_multiple_possibilities(field.value)
                     additional_info = multiple_choice.pop(-1)
                     
-                    form_answers = vars.form_answers
+                    form_answers     = vars.form_answers
+                    form_answers_set = set(form_answers)
 
-                    if additional_info in form_answers:
+                    if additional_info in form_answers_set:
                         multiple_choice.append(additional_info)
                         additional_info = None
 
-                    multiple_choice = "".join("1" if answer in multiple_choice else "0" for answer in reversed(form_answers))
+                    selected_answers = set(multiple_choice)
+                    multiple_choice  = "".join("1" if answer in selected_answers else "0" for answer in reversed(form_answers))
                 
                 case "6":
                     birth_parts = field.value.split(".")
@@ -781,13 +783,13 @@ def print_portkey(member, portkey):
     line_1 = f"{member.nick or member.global_name} | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
     embed.add_field(name="1. Hello, I'm... | And my ID is...", value=line_1, inline=True)
 
-    line_2 = vars.houses[[house for house in vars.houses_names_list(is_short=False) if house in roles][0]]["emoji"]
+    line_2 = vars.houses[next((house for house in vars.houses_names_list() if house in roles), "other")]["emoji"]
     embed.add_field(name="2. My house is...", value=line_2, inline=True)
     
     line_3 = (("Yes | " if portkey["from_wb"] else "No, ") + portkey["old_username"]) if portkey["old_username"] else ("Yes" if portkey["from_wb"] else "No")
     embed.add_field(name="3. Am I from the WB server? | My name was...", value=line_3.replace(" | 0", ", "), inline=False)
 
-    line_4 = "• " + "• ".join([form_answers_extended[idx] for idx,choice in enumerate(portkey["multiple_choice"][::-1] + ("1" if portkey["additional_info"] else "0")) if choice == "1"])
+    line_4 = "• " + "• ".join([form_answers_extended[idx].replace(" ", "​ ​ ", 1) for idx,choice in enumerate(portkey["multiple_choice"][::-1] + ("1" if portkey["additional_info"] else "0")) if choice == "1"])
     embed.add_field(name="4. In the game I like doing...", value=line_4, inline=False)
     
     if (not_skip := portkey["birthday"] is not None):
@@ -822,7 +824,7 @@ async def print_suitcase(images, info, level):
     embed.add_field(name="", value=f"*{pet['name']}* (Level {level})")
     embed.set_image(url=pet["url"])
 
-    match = re.search(r'attachment://(.*?)\.png', pet["url"])
+    match = search(r'attachment://(.*?)\.png', pet["url"])
     if match:
         return embed, (await images.initialize(filename__has="pet", filename__like=match.group(1))).get()
     else:
@@ -878,11 +880,11 @@ async def set_event_and_notification(server, event_info, date, event_duration, s
 
     # get alternative title and insert timer
     if not event_info["title"]:
-        event_name = re.search('<(.*)>', event_info["subtitle"]).group(1)
+        event_name = search('<(.*)>', event_info["subtitle"]).group(1)
         event_info["subtitle"] = replace_multiple(event_info["subtitle"], [("<", ""), (">", "")], self_idx=False)
 
     elif ("<" in event_info["title"]) and (">" in event_info["title"]):
-        event_name = re.search('<(.*)>', event_info["subtitle"]).group(1) + f": {re.search('<(.*)>', event_info['title']).group(1)}"
+        event_name = search('<(.*)>', event_info["subtitle"]).group(1) + f": {search('<(.*)>', event_info['title']).group(1)}"
         event_info["title"] = replace_multiple(event_info["title"], [("<", ""), (">", "")], self_idx=False)
         event_info["subtitle"] = replace_multiple(event_info["subtitle"], [("<", ""), (">", "")], self_idx=False)
     else:
