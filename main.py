@@ -4,9 +4,6 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! remove past bot notifications on midnight (if exist), but not SNAPE
-# - also fix DELETE SNAPE!
-
 #TODO! rework the sorthing-hat channel:
 # ~house picking system and change nickname~
 # ~add the member list permanent~
