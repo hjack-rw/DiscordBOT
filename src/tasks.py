@@ -1,7 +1,7 @@
 import src.variables as vars
 
 from src.db_classes import ExtraVariable, Portkeys
-from src.functions import get_today, print_notification
+from src.functions  import get_today, print_notification
 
 from datetime import datetime, time, timedelta
 
@@ -50,7 +50,7 @@ async def morning_reminder(bot, today):
     if not vars.test_bot["test_tasks"]:
         birthdays = (await Portkeys.initialize(message_id="unarchived", birthday=datetime(year=2000, month=today.month, day=today.day), specified_columns=["user_id", "message_id", "birthday"])).get(multiple=True)
     else:
-        birthdays = [385899007991480321 for _ in range(1)]
+        birthdays = [vars.dev_user_id for _ in range(1)]
 
     # trigger on someone birthday
     if birthdays:

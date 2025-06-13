@@ -1,7 +1,7 @@
-from src.db import *
-from src.functions import parse_xp_amount, parse_portkey_data
+from src.db        import *
+from src.functions import parse_portkey_data, parse_xp_amount
 
-import copy
+from copy import deepcopy
 
 from discord.file import File
 
@@ -111,7 +111,7 @@ class ExtraVariable(Database):
         value = next(iter(self._get_values_from_raw_data(self.raw_data)))["value"]
         
         if type(value) == permutation:
-            value = copy.deepcopy(value)
+            value = deepcopy(value)
             value.instance = to
             to = value
         
