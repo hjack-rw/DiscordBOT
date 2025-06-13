@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from enum import Enum
+from enum     import Enum
 
 import aiosqlite
 import asyncio
