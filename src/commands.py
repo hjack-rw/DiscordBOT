@@ -1,26 +1,24 @@
 import src.variables as vars
 
-from src.body import bot
-from src.db import IdAlreadyExistsError
+from src.body       import bot
+from src.db         import IdAlreadyExistsError
 from src.db_classes import *
-from src.functions import CustomHousecup, standard_response, send_webhook, get_image, get_avatar, draw_infocard, create_leaderboard, print_portkey, print_house_members, print_suitcase
-from src.tasks import print_notification
-from src.views import *
+from src.functions  import CustomHousecup, create_leaderboard, draw_infocard, get_avatar, print_portkey, send_webhook, standard_response
+from src.tasks      import print_notification
+from src.views      import *
 
-from datetime import datetime, timedelta
-from itertools import chain
-from typing import Optional, Literal
+from datetime   import datetime, timedelta
+from itertools  import chain
+from statistics import mean, stdev
+from typing     import Literal, Optional
 
-import statistics
-
-from discord.app_commands import Group, checks, command
-from discord.components import SelectOption
-from discord.embeds import Embed
-from discord.errors import NotFound
-from discord.ext import commands
+from discord.app_commands import checks, Group, command
+from discord.components   import SelectOption
+from discord.embeds       import Embed
+from discord.errors       import NotFound
 from discord.interactions import Interaction
-from discord.member import Member
-from discord.message import Message
+from discord.member       import Member
+from discord.message      import Message
 
 
 # SETTINGS
@@ -165,7 +163,7 @@ class AdminCommands(Group):
         
         elif event == "Housecup":
             housecup_disciplines = await ExtraVariable.initialize(name="housecup_disciplines")
-            housecup_reset = await ExtraVariable.initialize(name="housecup_reset")
+            housecup_reset       = await ExtraVariable.initialize(name="housecup_reset")
             
             today = today.astimezone(tz=vars.gameserver_timezone)
             delta = datetime(year=today.year, month=today.month, day=today.day, tzinfo=vars.gameserver_timezone) - vars.base_housecup_date
@@ -262,10 +260,10 @@ class AdminCommands(Group):
             if with_custom_housecup:
                 all_points = list(chain.from_iterable([house.points for house in custom_housecup]))
 
-                mean = statistics.mean(all_points)
-                sd   = statistics.stdev(all_points)
+                mn = mean(all_points)
+                sd = stdev(all_points)
                 
-                scoreboard = {house.name:house.for_scoreboard(mean, sd) for house in custom_housecup}
+                scoreboard = {house.name:house.for_scoreboard(mn, sd) for house in custom_housecup}
 
                 print(scoreboard)
                 winning_house = max(custom_housecup, key=lambda house: scoreboard.get(house.name, float('-inf'))).name
@@ -357,7 +355,7 @@ class AdminCommands(Group):
 
 bot.tree.add_command(AdminCommands())
 
-# All user commands
+# All users commands
 ############################################################################################################
 
 class GeneralCommands(Group):
@@ -397,13 +395,14 @@ class GeneralCommands(Group):
                 default_value = options[1].value
             else:
                 options = [SelectOption(label="Red",    value=0),
-                        SelectOption(label="Orange", value=1),
-                        SelectOption(label="Yellow", value=2),
-                        SelectOption(label="Green",  value=3),
-                        SelectOption(label="Blue",   value=4),
-                        SelectOption(label="Purple", value=5),
-                        SelectOption(label="White",  value=6),
-                        SelectOption(label="Black",  value=7),]
+                           SelectOption(label="Orange", value=1),
+                           SelectOption(label="Yellow", value=2),
+                           SelectOption(label="Green",  value=3),
+                           SelectOption(label="Blue",   value=4),
+                           SelectOption(label="Purple", value=5),
+                           SelectOption(label="White",  value=6),
+                           SelectOption(label="Black",  value=7),]
+                
                 default_value = options[0].value
 
             view = QuestionnaireView(options)
@@ -430,7 +429,7 @@ class GeneralCommands(Group):
 
         member = interaction.user
 
-        if all_pets and member.id not in {385899007991480321, 1207422967722811465}:
+        if all_pets and member.id not in {vars.dev_user_id}:
             raise Exception("you don't have access to all pets")
 
         if all_pets:
@@ -511,7 +510,7 @@ class GeneralCommands(Group):
         embed = Embed(color=vars.system_embed_color, description="".join(text))
         
         if trigger:
-            await interaction.response.send_message(f"**YES**, there will be **{housecup_disciplines_names[discipline]}** House Cup {'today' if today.weekday() == 5 else 'this week'}!", embed=embed, ephemeral=True)
+            await interaction.response.send_message(f"**YES**, there will be the **{housecup_disciplines_names[discipline]}** House Cup {'today' if today.weekday() == 5 else 'this week'}!", embed=embed, ephemeral=True)
         else:
             await interaction.response.send_message("There's **NO** House Cup this week!", embed=embed, ephemeral=True)
 
