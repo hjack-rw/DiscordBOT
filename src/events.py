@@ -1,12 +1,12 @@
-from src.body import bot
+from src.body       import bot
 from src.db_classes import Portkeys, WelcomeMessages
-from src.functions import draw_infocard, print_notification
-from src.variables import test_bot, channel_sections_ids, channel_ids, channel_ids_test
-from src.views import WelcomeView
+from src.functions  import draw_infocard, print_notification
+from src.variables  import channel_ids, channel_ids_test, channel_sections_ids, test_bot
+from src.views      import WelcomeView
 
-from asyncio import get_event_loop
+from asyncio  import get_event_loop
 from datetime import datetime
-from random import randint
+from random   import randint
 
 # SETTINGS
 # for testing
@@ -79,8 +79,11 @@ async def on_message(message):
     
     # skip if message channel is not allowed
     if message.channel.id != channel_ids["welcome"]:
-        category = message.channel.category
-        if not category or category.id not in [channel_sections_ids["general"], channel_sections_ids["guides"], channel_sections_ids["offtopic"]]:
+        if message.channel.id != channel_ids["club-events"]:
+            category = message.channel.category
+            if not category or category.id not in [channel_sections_ids["general"], channel_sections_ids["guides"], channel_sections_ids["offtopic"]]:
+                return
+        else:
             return
 
     # user cooldown
