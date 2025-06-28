@@ -1,23 +1,23 @@
-from src.db import Database
+from src.db         import Database
 from src.db_classes import Experience, WelcomeMessages
-from src.tasks import *
-from src.variables import test_bot, server_id, bot_id, channel_ids, channel_ids_test
-from src.views import WelcomeView, MemberView
+from src.tasks      import *
+from src.variables  import bot_id, channel_ids, channel_ids_test, dev_user_id, server_id, test_bot 
+from src.views      import WelcomeView, MemberView
 
 import asyncio
-import atexit
 
+from atexit   import register
 from datetime import datetime, timedelta
 
 from discord.app_commands import Group
-from discord.errors import NotFound
-from discord.ext import commands
-from discord.flags import Intents
+from discord.errors       import NotFound
+from discord.ext          import commands
+from discord.flags        import Intents
 
 
 # SETTINGS
 # for testing
-# test_bot["test_body"] = True # overwrite if needed
+# test_bot["test_body"]   = True # overwrite if needed
 # test_bot["test_events"] = True # overwrite if needed
 
 if test_bot["test_body"]:
@@ -32,8 +32,7 @@ class BOT(commands.Bot):
         
         self.db = Database
         
-        #TODO a hybrid connection to DB if hitting peak performance
-        #atexit.register(self.disconnect_sync)
+        register(self.disconnect_sync)
 
         self.user_last_executed = {}
         self.user_last_reacted  = {}
@@ -77,7 +76,7 @@ class BOT(commands.Bot):
         
         SERVER = self.server = self.get_guild(server_id)
 
-        for reminder in [morning_reminder, weekly_cards_reminder, housecup_reminder, club_events_reminder, game_midnight_reminder, midnight_reminder]:
+        for reminder in [game_reset_reminder, morning_reminder, weekly_cards_reminder, housecup_reminder, club_events_reminder, game_midnight_reminder, midnight_reminder]:
             if not reminder.is_running():
                 reminder.start(self)
 
@@ -104,8 +103,8 @@ class BOT(commands.Bot):
         
 
         if test_bot["test_events"]:
-            self.dispatch('member_join',   SERVER.get_member(385899007991480321))
-            self.dispatch('member_remove', SERVER.get_member(385899007991480321))
+            self.dispatch("member_join",   SERVER.get_member(dev_user_id))
+            self.dispatch("member_remove", SERVER.get_member(dev_user_id))
 
         ### TESTS HERE ###
         if test_bot["local_deploy"]:
