@@ -1,7 +1,7 @@
-from src.db import *
-from src.functions import parse_xp_amount, parse_portkey_data
+from src.db        import *
+from src.functions import parse_portkey_data, parse_xp_amount
 
-import copy
+from copy import deepcopy
 
 from discord.file import File
 
@@ -111,7 +111,7 @@ class ExtraVariable(Database):
         value = next(iter(self._get_values_from_raw_data(self.raw_data)))["value"]
         
         if type(value) == permutation:
-            value = copy.deepcopy(value)
+            value = deepcopy(value)
             value.instance = to
             to = value
         
@@ -162,7 +162,7 @@ class Portkeys(Database):
     def __init__(self):
         super().__init__()
 
-        self.types = {"from_wb":"bool", "multiple_choice":"binary_13", "birthday":"datetime"}
+        self.types = {"from_wb":"bool", "multiple_choice":"binary_16", "birthday":"datetime"}
 
     # add Portkey
     @sql_full_table_validator
@@ -180,7 +180,7 @@ class Portkeys(Database):
     @sql_only_one_validator
     async def archive(self):
         try:
-            message_id = self.get()["message_id"]
+            message_id = self.get_one_column("message_id")
             await self._update(new_values={"message_id":None})
             return message_id
         except TypeError:
@@ -190,7 +190,7 @@ class Portkeys(Database):
     def get(self, multiple=False):
         if multiple:
             return [portkey["user_id"] for portkey in self._get_values_from_raw_data(self.raw_data)]
-        return next(iter(self._get_values_from_raw_data(self.raw_data, add_id=True, omitted=["message_id"])), None)
+        return next(iter(self._get_values_from_raw_data(self.raw_data, add_id=True)), None)
 
 
 class WelcomeMessages(Database):
