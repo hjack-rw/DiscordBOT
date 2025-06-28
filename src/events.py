@@ -1,12 +1,12 @@
-from src.body import bot
+from src.body       import bot
 from src.db_classes import Portkeys, WelcomeMessages
-from src.functions import draw_infocard, print_notification
-from src.variables import test_bot, channel_sections_ids, channel_ids, channel_ids_test
-from src.views import WelcomeView
+from src.functions  import draw_infocard, print_notification
+from src.variables  import channel_ids, channel_ids_test, channel_sections_ids, test_bot
+from src.views      import WelcomeView
 
-from asyncio import get_event_loop
+from asyncio  import get_event_loop
 from datetime import datetime
-from random import randint
+from random   import randint
 
 # SETTINGS
 # for testing
