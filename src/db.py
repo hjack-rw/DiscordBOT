@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from enum import Enum
+from enum     import Enum
 
 import aiosqlite
 import asyncio
@@ -96,10 +96,13 @@ def sql_only_one_validator(func):
     @functools.wraps(func)
     async def validator(self, *args, **kwargs):
         return_empty = kwargs.pop("return_empty", False)
+
+        # prepare new_kwargs dict for func
+        new_kwargs = kwargs.copy()
         
         if not check_variable(self, variables=["is_shortened"]):
             if len(self.raw_data) == 1:
-                return await func(self, *args, **kwargs)
+                return await func(self, *args, **new_kwargs)
             elif return_empty and len(self.raw_data) == 0:
                 return None
         
@@ -146,7 +149,7 @@ def check_type(key, value, type, spec, required={"is_numeric":False,
     """Check the values in question if == type(column)"""
     
     try:
-        if type == "undefined":
+        if type == "undetermined":
             if not isinstance(value, int) or not isinstance(value, float):
                 raise Exception(f"'{key}' is neither an int nor a float!")
         
@@ -240,6 +243,7 @@ def apply_selected_columns(skip_when_default=False):
             # else autoiterate
             else:
                 kwargs["columns"] = filter(lambda item: isinstance(item[1], dict) and not item[1]["default"] and not item[1]["is_pk"], self.columns.items())
+            
             return func(self, *args, **kwargs)
 
         if skip_when_default:
@@ -254,7 +258,7 @@ class Filter(Enum):
     BOOL_F   = "* = 0"
     NULL     = "* IS NULL"
     LIKE     = " LIKE '%*%'"
-    HAS      = "substr(*, 1, instr(*, '_') - 1) = '*'"
+    HAS      = "substr(*, 1, instr(*, '_') - 1) = "
     SUBSTR   = "instr(*, '__') > 0 AND CAST(substr(*, instr(*, '_') + 1, instr(*, '__') - instr(*, '_') - 1) AS INTEGER) = "
 
 def apply_conditions(is_select=False):
@@ -278,6 +282,7 @@ def apply_conditions(is_select=False):
                 kwargs["conditions"] = "WHERE " + clause
             else:
                 kwargs["conditions"] = ""
+            
             return func(self, *args, **kwargs)
         
         return apply
@@ -508,6 +513,13 @@ class Database():
         except Exception as error:
             raise Exception(f"sqlite3 RESTORE error: {str(error)}")
 
+    @classmethod
+    async def disable_journal(cls):
+        """Restore database from a dump file"""
+        
+        await cls.run_query(query="PRAGMA journal_mode=DELETE;")
+        await cls.run_query(query="VACUUM;")
+
 
 # Basic SQL commands
 ############################################################################################################
@@ -615,9 +627,9 @@ class Database():
         
         types_dict = {"INTEGER":"int",
                       "REAL":   "float", 
-                      "NUMERIC":"undefined", # Float or Int
+                      "NUMERIC":"undetermined",   # Float or Int
                       "TEXT":   "str",
-                      "BLOB":   "binary_object",}    # Binary Large Object
+                      "BLOB":   "binary_object",} # Binary Large Object
         
         types_dict.update(types)
 
@@ -791,7 +803,7 @@ class Database():
             # if value has the correct type apply conditions
             if type != "bool":
                 
-                # int / float / undefined / datetime / binary / permutation / binary_object
+                # int / float / undetermined / datetime / binary / permutation / binary_object
                 if type != "str":
                     if type == "int":
 
@@ -833,11 +845,11 @@ class Database():
                             self.conditions.append(Filter.SUBSTR.value.replace("*", key.upper()) + str(value))
                         else:
                             if spec == "has":
-                                self.conditions.append(Filter.HAS.value.replace("*", key.upper(), 2).replace("*", value))
+                                self.conditions.append(Filter.HAS.value.replace("*", key.upper()) + self._return_value(value, type, direct_string=False))
                             else:
                                 self.conditions.append(key.upper() + Filter.LIKE.value.replace("*", value))
                     else:
-                        self.conditions.append(key.upper() + Filter.STANDARD.value.replace("*", str(self._return_value(value, type, direct_string=False))))
+                        self.conditions.append(key.upper() + Filter.STANDARD.value.replace("*", self._return_value(value, type, direct_string=False)))
 
             # bool
             elif type == "bool" and check_type(key, value, type, spec, required={"is_numeric":True,
