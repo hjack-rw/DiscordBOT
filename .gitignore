@@ -1,12 +1,8 @@
 .gitignore
-system_variables
-requirements.txt
-pre_init.py
 test.py
 test_images/
 __pycache__/
 src/env
-src/__database__.db
 src/__database__.db-journal
 src/__database__.db-dump
 src/__pycache__/
