@@ -5,6 +5,7 @@ from csv       import DictReader
 from datetime  import datetime, timedelta
 from functools import reduce, wraps
 from io        import BytesIO, StringIO
+from os        import getcwd, path
 from PIL       import Image, ImageDraw, ImageFilter, ImageFont, UnidentifiedImageError
 from re        import search, sub
 from time      import mktime, sleep
@@ -260,7 +261,7 @@ def get_json(url):
     try:
         # create HTTP response object 
         response = requests.get(url, timeout=10)
-        response.raise_for_status()
+        response.raise_for_status() # raise an exception for HTTP errors
 
         return response.json()
     except (requests.RequestException, ValueError):
@@ -271,7 +272,7 @@ def get_csv(url):
     try:
         # create HTTP response object 
         response = requests.get(url)
-        response.raise_for_status()
+        response.raise_for_status() # raise an exception for HTTP errors
 
         # decode the csv format
         decoded = response.content.decode("utf-8-sig")
@@ -290,6 +291,21 @@ def get_csv(url):
         return data
     except requests.RequestException:
         raise Exception("no CSV file found")
+
+
+def get_file(url, filename):
+    try:
+        # mimic a browser request
+        response = requests.get(url, headers={"user-agent": "Mozilla/5.0"}, stream=True)
+        response.raise_for_status() # raise an exception for HTTP errors
+
+        with open(path.join(vars.absolute_path, filename), 'wb') as file:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    file.write(chunk)
+
+    except requests.exceptions.RequestException as e:
+        raise Exception("no file found")
 
 
 def get_image(url, delay=2, max_retries=10):
