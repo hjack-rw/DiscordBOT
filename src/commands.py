@@ -3,7 +3,7 @@ import src.variables as vars
 from src.body       import bot
 from src.db         import IdAlreadyExistsError
 from src.db_classes import *
-from src.functions  import CustomHousecup, create_leaderboard, draw_infocard, get_avatar, print_portkey, send_webhook, standard_response
+from src.functions  import CustomHousecup, create_leaderboard, draw_infocard, get_avatar, get_file, print_portkey, send_webhook, standard_response
 from src.tasks      import print_notification
 from src.views      import *
 
@@ -61,6 +61,14 @@ class AdminCommands(Group):
         bot.user_experience = await Experience.initialize()
 
         await interaction.response.send_message("The Database was **restored**!", ephemeral=True)
+
+    
+    @command(name="download_db")
+    @standard_response()
+    async def download_db(self, interaction:Interaction, url:str):
+        ''' Download the Database from URL '''
+
+        get_file(url, filename="__database__.db-dump")
 
     ############################################################################################################
 
