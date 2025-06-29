@@ -1,13 +1,3 @@
-try:
-    from pre_init import *
-except ImportError:
-    print("failed to import 'test_bot' from pre_init!")
-    test_bot = {"local_deploy": False,
-                "test_body":    False,
-                "test_command": False,
-                "test_events":  False,
-                "test_tasks":   False,}
-
 from datetime import datetime, time
 from dotenv   import load_dotenv
 from pathlib  import Path
@@ -23,6 +13,12 @@ absolute_path = path
 
 discord_token = os.getenv("DISCORD_TOKEN")
 bot_token     = os.getenv("DISCORD_BOT_TOKEN")
+
+test_bot = {"local_deploy": "69hja" in os.getcwd(),
+            "test_body":    os.getenv("TEST_BODY")    == "True",
+            "test_command": os.getenv("TEST_COMMAND") == "True",
+            "test_events":  os.getenv("TEST_EVENTS")  == "True",
+            "test_tasks":   os.getenv("TEST_TASKS")   == "True",}
 
 ############################################################################################################
 
