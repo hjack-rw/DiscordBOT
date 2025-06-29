@@ -1,4 +1,5 @@
 aiosqlite
+cutie
 discord.py
 pillow
 pip-system-certs
