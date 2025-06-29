@@ -1,7 +1,4 @@
 .gitignore
-system_variables
-requirements.txt
-pre_init.py
 test.py
 test_images/
 __pycache__/
