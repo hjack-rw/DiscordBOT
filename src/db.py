@@ -487,11 +487,11 @@ class Database():
             raise Exception(f"sqlite3 BACKUP error: {str(error)}")
     
     @classmethod
-    async def restore(cls):
+    async def restore(cls, clear=False):
         """Restore database from a dump file"""
 
         DB_PATH   = os.path.join(cls.database_path, cls.database_name)
-        DUMP_PATH = os.path.join(cls.database_path, f"{cls.database_name}-dump")
+        DUMP_PATH = os.path.join(cls.database_path, f"{cls.database_name}-{'blank' if clear else 'dump'}")
         
         errors = []
 
