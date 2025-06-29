@@ -1,0 +1,6 @@
+discord.py
+pillow
+python-dotenv
+requests
+
+git+https://github.com/69HJack69/DiscordBOT.git
