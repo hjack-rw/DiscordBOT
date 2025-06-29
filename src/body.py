@@ -44,7 +44,7 @@ class BOT(commands.Bot):
         await DB.disable_journal()
 
         if await DB.is_empty():
-            await DB.restore()
+            await DB.restore(clear=True)
 
         #TODO a hybrid connection to DB if hitting peak performance
         #await self.db.reconnect()
