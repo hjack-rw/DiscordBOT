@@ -31,33 +31,59 @@ dev_user_id = 385899007991480321
 webhook_id  = 1310623344122531851
 server_id   = 1221838993071538327
 
+club_name = "Enemies of the Heir"
+club_name_short = "eoth"
+
 channel_sections_ids = {"archive":  1283402898914410567,
-                        "admins":   1221881911958569000,
+                        "team":     1229728030226776084,
+                        "club":     1221838993071538328,
+                        "tickets":  1287374296737386546,
                         "general":  1221863697337684018,
                         "guides":   1281188392884768810,
                         "offtopic": 1221914890915287214,}
 
-channel_ids = {"welcome":           1221838993071538330,
-               "points-log":        1372605626445861067,
-               "assets":            1317172237572509787,
-               "testing":           1287909744409055272,
-               "headmasters":       1255614086033575977,
-               "staffroom":         1283404834804076587,
-               "sorting-hat":       1256982350802190426,
-               "announcements":     1222126723902996480,
-               "portkey-arrival":   1281357645902512168,
-               "leaderboard":       1305540120631447654,
-               "the-3-broomsticks": 1221920204385161319,
-               "portraits":         1221864727882498088,
-               "hagrids-hut":       1269713312438816819,
-               "dueling-club":      1222118438596771851,
-               "felix-felicis":     1235180456878542979,
-               "club-events":       1391751284801142794,
-               "gallery":           1287065098648555531,
-               "music-channel":     1287065098648555532,}
+channel_ids = {"welcome":                 1221838993071538330,
+               
+               "secret-lab":              1287909744409055272,
+               "assets":                  1317172237572509787,
+               "staffroom":               1283404834804076587,
+               "absence-list":            1372605626445861067,
+               "points-log":              1372605626445861067,
+               "the-sorting-hat":         1255614086033575977,
+               
+               "rules":                   1221860321363234957,
+               "marauders-map":           1256982350802190426,
+               "announcements":           1222126723902996480,
+               "the-daily-prophet":       1255632206009860136,
+               "important-polls":         1229835949744066694,
+               "portkey-arrival":         1281357645902512168,
+               "leaderboard":             1305540120631447654,
 
-channel_ids_test = {"assets": 1317172237572509787,}
-channel_ids_test.update({key:channel_ids["testing"] for key in channel_ids if key not in ["assets",]})
+               "owlery":                  1287382189713129532,
+               "come-and-go":             1287372140454350920,
+
+               "great-hall":              1221864417885421628,
+               "portraits":               1221864727882498088,
+               "dueling-club":            1269713312438816819,
+               "diagon-alley":            1287009813238255668,
+
+               "charms":                  1278363571083804777,
+               "greenhouse":              1261688256366510090,
+               "kitchen":                 1377249937942642850,
+               "dada":                    1256026702027690136,
+               
+               "gallery":                 1287065098648555531,
+               "frog-choir":              1396217519706079385,
+               "the-quibbler":            1255633927083786401,
+               "weasleys-wizard-wheezes": 1222327039244374156,
+               "hagrids-hut":             1269713312438816819,
+               "wizard-cards":            1256386517945942026,
+               "crystal-ball":            1303797520081616896,
+
+               "pensieve":                1221838993071538331,}
+
+channel_ids_test = {"assets": channel_ids["assets"],}
+channel_ids_test.update({key: channel_ids["secret-lab"] for key in channel_ids if key not in list(channel_ids_test.keys())})
 
 ############################################################################################################
 
@@ -84,13 +110,13 @@ def houses_names_list(is_short=True):
 
 custom_avatars = {"Mr. Filch":        "https://www.tafce.com/images/c/c6/Mr_Filch_HPATGOF_-_Edited.png",
                   "Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypotter/images/8/82/ProfessorDumbledore.jpg",
-                  "Prof. Hagrid":     "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",
-                  "Prof. Slughorn":   "https://fwcdn.pl/cpo/03/33/333/199.4.jpg",
-                  "Prof. Trelawney":  "https://www.tafce.com/images/thumb/9/9b/Professor_Sybil_Trelawney_HPATOOTP_-_Edited.png/350px-Professor_Sybil_Trelawney_HPATOOTP_-_Edited.png",
-                  "Prof. McGonagall": "https://m.natemat.pl/4cccf528bb2fabc88d662c3ac8a519ef,922,0,0,0.png",
-                  "Prof. Sprout":     "https://m.media-amazon.com/images/M/MV5BMzY1ZTFlMTctYmNmMC00MWQyLWI1MDAtOGM5N2MyZGI5N2JkXkEyXkFqcGc@._V1_QL75_UX331_.jpg",
                   "Prof. Flitwick":   "https://www.superherodb.com/pictures2/portraits/10/050/13801.jpg?v=1637971200",
-                  "Prof. Snape":      "https://images.bravo.de/harry-potter-star-was-stimmt-mit-seinen-augen-nichtjpg,id=ac02185e,b=bravo,w=1200,rm=sk.jpeg",}
+                  "Prof. Hagrid":     "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",
+                  "Prof. McGonagall": "https://m.natemat.pl/4cccf528bb2fabc88d662c3ac8a519ef,922,0,0,0.png",
+                  "Prof. Slughorn":   "https://fwcdn.pl/cpo/03/33/333/199.4.jpg",
+                  "Prof. Snape":      "https://images.bravo.de/harry-potter-star-was-stimmt-mit-seinen-augen-nichtjpg,id=ac02185e,b=bravo,w=1200,rm=sk.jpeg",
+                  "Prof. Sprout":     "https://m.media-amazon.com/images/M/MV5BMzY1ZTFlMTctYmNmMC00MWQyLWI1MDAtOGM5N2MyZGI5N2JkXkEyXkFqcGc@._V1_QL75_UX331_.jpg",
+                  "Prof. Trelawney":  "https://www.tafce.com/images/thumb/9/9b/Professor_Sybil_Trelawney_HPATOOTP_-_Edited.png/350px-Professor_Sybil_Trelawney_HPATOOTP_-_Edited.png",}
 
 housecup_disciplines_names = {0: "Best Partners",
                               1: "Dance Club",

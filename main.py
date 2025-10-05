@@ -4,15 +4,8 @@ if __name__ == '__main__':
     bot.run(bot_token)
 
 
-#TODO! rework the sorthing-hat channel:
-# ~house picking system and change nickname~
-# ~add the member list permanent~
-# - subscription system (see bellow:)
+#TODO! if people start using it, auto-delete from diagon-alley
 
-#TODO! subscription system:
-# - pick a subscription and add the role to members before the event
-# - clear all subscriptions on another button
-# - IMPORTANT: check if clearing the role keeps the notification!
 
 #TODO! sprout:
 # trigger on herbology related stuff:
@@ -27,6 +20,11 @@ if __name__ == '__main__':
 
 
 ## CRAZY IDEAS ##
+
+#TODO! subscription system:
+# - pick a subscription and add the role to members before the event
+# - clear all subscriptions on another button
+# - IMPORTANT: check if clearing the role keeps the notification!
 
 #TODO! image host:
 # - upload file to the server, store only part of the link in db

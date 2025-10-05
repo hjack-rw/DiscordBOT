@@ -1,6 +1,6 @@
 from src.db_classes import Images
 from src.functions  import disable_after, print_house_members, print_suitcase, turn_limit
-from src.variables  import houses_names_list, pets
+from src.variables  import club_name_short, houses_names_list, pets
 
 from discord.enums         import ButtonStyle
 from discord.ext           import commands
@@ -179,7 +179,7 @@ class MemberView(View):
         
         self.members = members
         self.houses  = houses_names_list()
-        self.groups  = ["gop", "guest"]#, "cross guild"]
+        self.groups  = [club_name_short, "guest"]#, "cross guild"]
 
         if message is not None:
             self.message = message
@@ -242,13 +242,13 @@ class MemberView(View):
     def turn_right(self, interaction: Interaction, button: Button):
         self.page = turn_limit(turnable=(self.page+1), max=len(self.houses))
     
-    @button(label="GOP",  style=ButtonStyle.red, custom_id="filter")
+    @button(label=club_name_short.upper(),  style=ButtonStyle.red, custom_id="filter")
     @cooldown_interaction
     def switch_filter(self, interaction: Interaction, button: Button):
         self.filter = turn_limit(turnable=(self.filter+1), max=len(self.groups))
 
         if self.filter == 0:
-            self.children[2].label = "GOP"
+            self.children[2].label = club_name_short.upper()
             self.children[2].style = ButtonStyle.red
         elif self.filter == 1:
             self.children[2].label = "Guest"

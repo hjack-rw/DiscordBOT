@@ -55,9 +55,6 @@ async def game_reset_reminder(bot, today):
     channel = SERVER.get_channel(channel_ids["announcements"])
     [await message.delete() async for message in channel.history(after=(today - timedelta(days=2))) if (message.author.name in notification_authors and "Mention: " in message.content)]
 
-    channel = SERVER.get_channel(channel_ids["club-events"])
-    [await message.delete() async for message in channel.history(before=today)]
-
     # backup database
     if not vars.test_bot["test_tasks"]:
         try:
