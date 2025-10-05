@@ -82,11 +82,8 @@ async def on_message(message):
     
     # skip if message channel is not allowed
     if message.channel.id != channel_ids["welcome"]:
-        if message.channel.id != channel_ids["club-events"]:
-            category = message.channel.category
-            if not category or category.id not in [channel_sections_ids["general"], channel_sections_ids["guides"], channel_sections_ids["offtopic"]]:
-                return
-        else:
+        category = message.channel.category
+        if not category or category.id not in [channel_sections_ids["general"], channel_sections_ids["guides"], channel_sections_ids["offtopic"]]:
             return
 
     # user cooldown
@@ -139,7 +136,7 @@ async def on_reaction_add(reaction, user):
     message = reaction.message
 
     # skip if message channel is not allowed
-    if message.channel.id not in [channel_ids["portraits"], channel_ids["hagrids-hut"], channel_ids["dueling-club"], channel_ids["felix-felicis"], channel_ids["gallery"], channel_ids["music-channel"]]:
+    if message.channel.id not in [channel_ids["portraits"], channel_ids["dueling-club"], channel_ids["gallery"], channel_ids["frog-choir"], channel_ids["hagrids-hut"]]:
         return
 
     # user cooldown    

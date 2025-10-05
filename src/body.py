@@ -76,7 +76,15 @@ class BOT(commands.Bot):
         
         SERVER = self.server = self.get_guild(server_id)
 
-        for reminder in [game_reset_reminder, morning_reminder, weekly_cards_reminder, housecup_reminder, club_events_reminder, game_midnight_reminder, midnight_reminder]:
+        for reminder in [
+                         game_reset_reminder, 
+                         morning_reminder,
+                         weekly_cards_reminder,
+                         housecup_reminder,
+                         #club_events_reminder,
+                         game_midnight_reminder,
+                         #midnight_reminder
+                        ]:
             if not reminder.is_running():
                 reminder.start(self)
 
@@ -94,8 +102,8 @@ class BOT(commands.Bot):
 
         
         # reactivate MemberView
-        CHANNEL         = SERVER.get_channel(channel_ids["sorting-hat"])
-        MEMBERS_MESSAGE = await CHANNEL.fetch_message(1369590818192494668)
+        CHANNEL         = SERVER.get_channel(channel_ids["marauders-map"])
+        MEMBERS_MESSAGE = await CHANNEL.fetch_message(1424383695158251542)
         
         self.members_view = MemberView(members=SERVER.members, message=MEMBERS_MESSAGE)
         self.add_view(view=self.members_view, message_id=MEMBERS_MESSAGE.id)

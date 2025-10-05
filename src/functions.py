@@ -664,7 +664,7 @@ def parse_xp_amount(func):
 
         # check roles to assign Sphinx or Ashwinder pet accordingly
         if is_new:
-            new_kwargs["pet_ashwinder"] = not bool({role.name for role in getattr(member, "roles", [])} & {"gop", "guest"})
+            new_kwargs["pet_ashwinder"] = not bool({role.name for role in getattr(member, "roles", [])} & {vars.club_name_short, "guest"})
 
         # call the original function
         current_xp = await func(self, *args, **new_kwargs)
@@ -713,7 +713,7 @@ def create_leaderboard(server, data, custom_housecup):
 
         # get the special role color
         try:
-            if member.roles[-1].name in {"captain", "moderator", "co-captain", "discord-monitor"}:
+            if member.roles[-1].name in {"captain", "moderator", "co-captain",}:
                 color = member.roles[-1].color.value
             else:
                 color = 5198940
@@ -721,7 +721,7 @@ def create_leaderboard(server, data, custom_housecup):
             color = vars.system_embed_color
 
         if (username := user.pop("username", None)) is None:
-            user["username"] = (member.nick or member.global_name).replace(" ", "\n ")
+            user["username"] = (member.display_name).replace(" ", "\n ")
         else:
             user["username"] = username
         
@@ -809,7 +809,7 @@ def print_portkey(member, portkey):
     try:
         roles = {role.name for role in getattr(member, "roles", [])}
 
-        if member.roles[-1].name in {"captain", "moderator", "co-captain", "discord-monitor"}:
+        if member.roles[-1].name in {"captain", "moderator", "co-captain",}:
             color = member.roles[-1].color.value
         else:
             color = 5198940
@@ -825,7 +825,7 @@ def print_portkey(member, portkey):
 
     embed = Embed(color=color, description=f"**User:** <@{portkey['user_id']}>")
     
-    line_1 = f"{member.nick or member.global_name} | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
+    line_1 = f"{member.display_name} | `#" + f"{portkey['game_id'] if portkey['game_id'] else 0}`".rjust(10, "0") + f" [📋]({doc_url})"
     embed.add_field(name="1. Hello, I'm... | And my ID is...", value=line_1, inline=True)
 
     line_2 = vars.houses[next((house for house in vars.houses_names_list() if house in roles), "other")]["emoji"]
@@ -850,7 +850,7 @@ def print_portkey(member, portkey):
         line_6 = portkey["extra"]
         embed.add_field(name=f"{6 if not_skip else 5}. You may also want to know...", value=line_6, inline=False)
     
-    embed.set_footer(text=f"GOP  •  Portkey #{portkey['id']}")
+    embed.set_footer(text=f"{vars.club_name_short.upper()}  •  Portkey #{portkey['id']}")
 
     return embed
 
@@ -887,12 +887,12 @@ def print_house_members(members, house, group):
         if {house, group} <= {role.name for role in getattr(member, "roles", [])}:
             users.append(member)
 
-    users = sorted(users, key=lambda x: (x.nick or x.global_name))
+    users = sorted(users, key=lambda x: (x.display_name))
     
     for idx, user in enumerate(users):
-        users[idx] = f"{idx+1}. {user.nick or user.global_name} - <@{user.id}>"
+        users[idx] = f"{idx+1}. {user.display_name} - <@{user.id}>"
 
-    return Embed(color=vars.system_embed_color, title=vars.houses[house]["emoji"], description=f"**{group.capitalize() if group != 'gop' else group.upper()}:**\n"+"\n".join(users))
+    return Embed(color=vars.system_embed_color, title=vars.houses[house]["emoji"], description=f"**{group.capitalize() if group != vars.club_name_short else vars.club_name}:**\n"+"\n".join(users))
 
 ############################################################################################################
 
@@ -1002,21 +1002,21 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
         channel = server.get_channel(channel_ids["welcome"])
 
         event_info = {"mention":    f"Mention: <@{new_user.id}>",
-                      "title":      f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",
+                      "title":      f"Welcome {new_user.name}, to {vars.club_name}! <:hugs:1256225688403447888>",
                       "description": "Go to <id:guide> and follow the instructions :)",
                       "footer":   f'''"You are a Wizard, {new_user.name}."''',
                       "account":     "Prof. Hagrid",}
         
-        embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=vars.system_embed_color)
+        embed = Embed(title=event_info["title"],  description=event_info["description"], color=vars.system_embed_color)
 
     elif event_name == "Level Up":
         user, user_data, level_ups = variables
 
-        channel = server.get_channel(channel_ids["the-3-broomsticks"])
+        channel = server.get_channel(channel_ids["great-hall"])
 
         event_info = {"mention":    f"Mention: <@{user.id}>",
                       "title":      f"Level {level_ups[-1]}!",
-                      "description":f"**{user.nick or user.global_name}** just caught a **{get_animal_rank(user=user_data, level=level_ups[0])['name']}** <:hugs:1256225688403447888>\n",
+                      "description":f"**{user.display_name}** just caught a **{get_animal_rank(user=user_data, level=level_ups[0])['name']}** <:hugs:1256225688403447888>\n",
                       "extra_fields":[f"Wait! There is more... they also caught a {get_animal_rank(user=user_data, level=level)['name']}\n" for level in level_ups[1:]],
                       "footer":   '''"One can never have enough pets!"''',
                       "account":     "Prof. Dumbledore",}
@@ -1028,14 +1028,15 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
             event_info["description"] += ending
 
     elif event_name == "Birthday":
-        birthdays = variables[0]
+        birthday_users = [await server.fetch_member(user_id) for user_id in variables[0]]
+        birthday_user  = birthday_users[0]
         
-        channel = server.get_channel(channel_ids["the-3-broomsticks"])
+        channel = server.get_channel(channel_ids["great-hall"])
 
         event_info = {"mention":       "Mention: @everyone",
                       "subtitle":      "Birthday Announcement!",
-                      "description":  f"**GOP  •  {date.strftime('%d/%m/%Y')}**\nPlease, wish <@{birthdays[0]}> a **Happy Birthday** <:hugs:1256225688403447888> :heart:",
-                      "extra_fields":[f"Wait! There is more...\nPlease, wish <@{birthday}> a **Happy Birthday** as well <:hugs:1256225688403447888> :heart:" for birthday in birthdays[1:]],
+                      "description":  f"**{vars.club_name_short.upper()}  •  {date.strftime('%d/%m/%Y')}**\nPlease, wish **{birthday_user.display_name}** a **Happy Birthday** <:hugs:1256225688403447888> :heart:",
+                      "extra_fields":[f"Wait! There is more...\nPlease, wish **{birthday_user.display_name}** a **Happy Birthday** as well <:hugs:1256225688403447888> :heart:" for birthday_user in birthday_users[1:]],
                       "thumbnail":     "https://i.pinimg.com/564x/d8/48/59/d848592fca62cc100b148b5b77006248.jpg",
                       "footer":     '''"I can see something in the stars...\nToday is a very special day!"''',
                       "account":       "Prof. Trelawney",}
@@ -1088,7 +1089,7 @@ async def print_notification(server, event_name, date=None, variables=[], is_tas
 
     elif event_name == "Club Events":
         event_info = {"image_id":    "1317192161891979334",
-                      "title":       "GOP Club Events!",
+                      "title":      f"{vars.club_name_short.upper()} Club Events!",
                       "subtitle":   f"Reminder: {vars.weekdays[date.weekday()]}!",
                       "description": "**We start 000!**\nWe will begin with a Quiz, and after roughly 20 min we go over to a Dance!",
                       "footer":   '''"Place your right hand on my waist and...\nOne, two, three... One, two, three..."''',

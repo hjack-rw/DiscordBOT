@@ -140,7 +140,7 @@ class AdminCommands(Group):
         ''' Send a Message as User '''
         
         if (member and not option) or (not member and option):
-            user_name = member.nick if member else option
+            user_name = member.display_name if member else option
             user_avatar_url = get_avatar(member, none=True)
 
             await send_webhook(target_channel=interaction.channel, user_name=user_name, user_avatar_url=user_avatar_url, content=say)
@@ -301,14 +301,14 @@ class AdminCommands(Group):
         if current_xp:
             if action != "set":
                 action += "ed"
-                log = f"**{member.nick or member.global_name}** - {amount} points {action}! Current XP: **{current_xp}**"
+                log = f"**{member.display_name}** - {amount} points {action}! Current XP: **{current_xp}**"
             else:
-                log = f"**{member.nick or member.global_name}** - points set! XP: **{amount}**"
+                log = f"**{member.display_name}** - points set! XP: **{amount}**"
 
             if comment:
                 log += f"\nComment: {comment}"
 
-            await interaction.response.send_message(f"User {member.nick or member.global_name} has been **{action}**!", ephemeral=True)
+            await interaction.response.send_message(f"User {member.display_name} has been **{action}**!", ephemeral=True)
             await CHANNEL.send(content=log)
 
 
@@ -323,8 +323,8 @@ class AdminCommands(Group):
         USER_EXPERIENCE = bot.user_experience
         await USER_EXPERIENCE.reset(user_id=member.id)
 
-        await interaction.response.send_message(f"User {member.nick or member.global_name} has been **reseted**!", ephemeral=True)
-        await CHANNEL.send(content=f"**{member.nick or member.global_name}** - points reseted! XP: **0**")
+        await interaction.response.send_message(f"User {member.display_name} has been **reseted**!", ephemeral=True)
+        await CHANNEL.send(content=f"**{member.display_name}** - points reseted! XP: **0**")
 
 
     @command(name="change_lb")
@@ -335,10 +335,10 @@ class AdminCommands(Group):
         info = await ExperienceInfo.initialize(extended=True, user_id=member.id, omitted_columns=["xp", "level", "progress"])
         
         if (is_archived := info.get_one_column("archived")) is None:
-            raise Exception(f"User {member.nick or member.global_name} doesn't have a leaderboard card")
+            raise Exception(f"User {member.display_name} doesn't have a leaderboard card")
 
         if is_archived is True:
-            raise Exception(f"User {member.nick or member.global_name} was ARCHIVED")
+            raise Exception(f"User {member.display_name} was ARCHIVED")
         
         if username is None and offset is None:
             raise Exception("pick a 'username' or an 'offset'")
@@ -351,7 +351,7 @@ class AdminCommands(Group):
 
         await info.change(**all_picked)
 
-        await interaction.response.send_message(f"User {member.nick or member.global_name} leaderboard card has been **changed**!", ephemeral=True)
+        await interaction.response.send_message(f"User {member.display_name} leaderboard card has been **changed**!", ephemeral=True)
 
 
     @command(name="reload_xp")
@@ -387,9 +387,9 @@ class GeneralCommands(Group):
 
         QUESTIONS = 4
         questions = {1: {"description": "Do you enjoy exploring the Black Lake?", "variable": "pet_from_sea"},
-                    2: {"description": "Do you prefer dogs to cats?", "variable": "pet_dog"},
-                    3: {"description": "Can you see Thestrals?", "variable": "pet_thestral"},
-                    4: {"description": "What is your favorite color?", "variable": "favourite_color"},}
+                     2: {"description": "Do you prefer dogs to cats?",            "variable": "pet_dog"},
+                     3: {"description": "Can you see Thestrals?",                 "variable": "pet_thestral"},
+                     4: {"description": "What is your favorite color?",           "variable": "favourite_color"},}
 
         if question_idx:
             if 1 <= question_idx <= QUESTIONS:
@@ -427,7 +427,7 @@ class GeneralCommands(Group):
 
         # TODO! insert without defaults if provided
         if is_archived is None:
-            await (await ExperienceInfo.initialize()).add(user_id=member.id, pet_ashwinder=not bool({role.name for role in getattr(member, "roles", [])} & {"gop", "guest"}))
+            await (await ExperienceInfo.initialize()).add(user_id=member.id, pet_ashwinder=not bool({role.name for role in getattr(member, "roles", [])} & {vars.club_name_short, "guest"}))
             await (await ExperienceInfo.initialize(user_id=member.id)).change(**all_picked)
         else:
             await info.change(**all_picked)
@@ -450,7 +450,7 @@ class GeneralCommands(Group):
 
         else:
             info = (await ExperienceInfo.initialize(extended=True, user_id=member.id, omitted_columns=["xp"])).get()
-            info["username"]          = member.nick or member.global_name
+            info["username"]          = member.display_name
             info["xp_for_next_level"] = 5 * (info["level"] ** 2) + (50 * info["level"]) + 100
 
             # find if the username ends with 's'
