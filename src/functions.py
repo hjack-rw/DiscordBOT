@@ -190,6 +190,25 @@ async def send_webhook(target_channel, user_name, user_avatar_url=None, content=
     else:
         raise Exception("failed to create webhook")
 
+
+async def edit_webhook(target_channel, message_id, embed=None, file=None):
+    
+    response = change_webhook_channel(target_channel)
+    #print(response)
+
+    webhook = [webhook for webhook in await target_channel.webhooks() if webhook.id == vars.webhook_id][0]
+
+    embeds, attachments = [], []
+    
+    if embed:
+        embeds = [embed]
+
+    if file:
+        attachments = [file]
+    
+    await webhook.edit_message(message_id=message_id, embeds=embeds, attachments=attachments)
+
+
 ############################################################################################################
 
 def replace_multiple(string:str, replace_list:list, self_idx=True):
