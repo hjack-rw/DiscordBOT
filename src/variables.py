@@ -110,7 +110,7 @@ def houses_names_list(is_short=True):
 
 custom_avatars = {"Mr. Filch":        "https://www.tafce.com/images/c/c6/Mr_Filch_HPATGOF_-_Edited.png",
                   "Prof. Dumbledore": "https://static.wikia.nocookie.net/harrypotter/images/8/82/ProfessorDumbledore.jpg",
-                  "Prof. Flitwick":   "https://www.superherodb.com/pictures2/portraits/10/050/13801.jpg?v=1637971200",
+                  "Prof. Flitwick":   "https://files.catbox.moe/9cfhlt.jpg",
                   "Prof. Hagrid":     "https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg",
                   "Prof. McGonagall": "https://m.natemat.pl/4cccf528bb2fabc88d662c3ac8a519ef,922,0,0,0.png",
                   "Prof. Slughorn":   "https://fwcdn.pl/cpo/03/33/333/199.4.jpg",
