@@ -20,7 +20,7 @@ from discord.errors              import DiscordServerError, NotFound
 from discord.embeds              import Embed
 from discord.enums               import EntityType, PrivacyLevel
 from discord.file                import File
-from discord.interactions        import Interaction
+from discord.interactions        import Interaction, InteractionResponded
 from discord.message             import Message
 from discord.utils               import MISSING
 
@@ -89,7 +89,7 @@ def standard_response(silent: bool=False):
 
             if not silent:
                 if interaction:
-                    await interaction.response.send_message(text, ephemeral=True)
+                    await safe_handle_response(interaction, message=text)
                 elif message:
                     await message.channel.send(text, delete_after=10)
 
@@ -100,10 +100,7 @@ def standard_response(silent: bool=False):
                 
                 try:
                     if interaction:
-                        if not silent:
-                            return await interaction.followup.send(text, ephemeral=True)
-                        else:
-                            return await interaction.response.send_message(text, ephemeral=True)
+                        return await safe_handle_response(interaction, message=text)
                     elif message:
                         return await message.channel.send(text, delete_after=10)
                 except Exception as followup_error:
@@ -113,6 +110,18 @@ def standard_response(silent: bool=False):
         
         return response
     return run
+
+
+async def safe_handle_response(interaction, message):
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+    
+    # if already responded/deferred
+    except InteractionResponded:
+        await interaction.followup.send(message, ephemeral=True)
 
 
 def disable_after(func):
