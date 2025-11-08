@@ -30,7 +30,8 @@ class BOT(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="/", intents=Intents.all(), application_id=bot_id)
         
-        self.db = Database
+        self.server = None
+        self.db     = Database
         
         register(self.disconnect_sync)
 
@@ -55,12 +56,17 @@ class BOT(commands.Bot):
     def disconnect_sync(self):
         asyncio.run(self.db.disconnect())
 
+
     # Start event
     async def on_ready(self):        
         print(f"{'Deployed' if any(test_bot.values()) else 'Logged on as'} {self.user}!")
 
+
+        # asynchornous initialization
         await self.async_init()
 
+
+        # load commands
         try:
             await self.tree.sync()
             synched  = bot.tree.get_commands()
@@ -74,8 +80,20 @@ class BOT(commands.Bot):
         except Exception as error:
             print(error)
         
-        SERVER = self.server = self.get_guild(server_id)
+        
+        # get SERVER
+        while self.server is None:
+            self.server = self.get_guild(server_id)
+            
+            if self.server:
+                break
 
+            await asyncio.sleep(3)
+
+        SERVER = self.server
+
+
+        # start tasks
         for reminder in [
                          game_reset_reminder, 
                          morning_reminder,
@@ -88,6 +106,7 @@ class BOT(commands.Bot):
             if not reminder.is_running():
                 reminder.start(self)
 
+        
         # reactivate WelcomeViews
         for welcome_message in (await WelcomeMessages.initialize(date__greatequal=(datetime.now() - timedelta(days=14)), order=["date-"])).get():
             try:
@@ -113,6 +132,7 @@ class BOT(commands.Bot):
         if test_bot["test_events"]:
             self.dispatch("member_join",   SERVER.get_member(dev_user_id))
             self.dispatch("member_remove", SERVER.get_member(dev_user_id))
+
 
         ### TESTS HERE ###
         if test_bot["local_deploy"]:

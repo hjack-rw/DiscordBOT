@@ -4,6 +4,8 @@ from src.functions  import draw_infocard, print_notification
 from src.variables  import channel_ids, channel_ids_test, channel_sections_ids, test_bot
 from src.views      import WelcomeView
 
+import traceback
+
 from asyncio  import get_event_loop
 from datetime import datetime
 from random   import randint
@@ -155,3 +157,26 @@ async def on_reaction_add(reaction, user):
             await USER_EXPERIENCE.tweak(server=SERVER, member=user, amount=5)
         except Exception as error:
             print(str(error))
+
+
+# Error Handling
+@bot.event
+async def on_error(event_method, *args, **kwargs):
+    caught_error = traceback.format_exc()
+    
+    # ignore common network-related aiohttp errors
+    ignored_errors = ("ClientConnectorDNSError",
+                      "ClientOSError",
+                      "ClientConnectorError",
+                      "TimeoutError",)
+
+    if any(error in caught_error for error in ignored_errors):
+        return
+    
+    print(f"Event {event_method} error:\n{caught_error}")
+
+
+# Disconnect
+@bot.event
+async def on_disconnect():
+    print("Bot disconnected — waiting to reconnect...")
