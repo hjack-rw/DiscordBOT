@@ -1,0 +1,11 @@
+.gitignore
+.system_variables
+pre_init.py
+test.py
+__pycache__/
+test_images/
+src/__database__.db
+src/__database__.db-dump
+src/__database__.db-journal
+src/__pycache__
+src/env

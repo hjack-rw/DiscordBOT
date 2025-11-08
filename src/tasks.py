@@ -1,74 +1,193 @@
-from src.variables import local_deploy, channel_ids
+import src.variables as vars
+
+from src.db_classes import ExtraVariable, Portkeys
+from src.functions  import get_today, print_notification
+
+from datetime import datetime, time, timedelta
 
 from discord.ext import tasks
 
-import datetime
-import pytz
 
-__all__ = ["club_event_reminder", "midnight_reminder"] 
-
-
-# SETTINGS 
-test_events = True if local_deploy else False
-#// test_events = True # an overwrite
-
-time_zone = datetime.timezone.utc
-delete_after = datetime.time(hour=1, minute=0, second=0)
-
-time_trigger = {"game": {"hour": 4, "minute": 0}, # UTC+2
-                "midnight": {"hour": 0, "minute": 0}, # UTC / UTC+2
-                "club event": {"hour": 19, "minute": 25}, # UTC
-               }
-
-weekday = {0:"Sunday", 1:"Monday", 2:"Thursday",  3:"Wednesday", 4:"Tuesday", 5:"Friday", 6:"Saturday"}
-
-
+# SETTINGS
 # for testing
-if test_events:
-    time_zone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
-    delete_after = datetime.time(hour=0, minute=3, second=0)
+# vars.test_bot["test_tasks"] = True # overwrite if needed
+
+if vars.test_bot["test_tasks"]:
+    now = datetime.now()
+
+    # replace time
+    hour, minute  = (int(value) for value in now.strftime("%H/%M").split("/"))
+    if minute <= (59 - vars.wait_for):
+        minute += vars.wait_for
+    else:
+        hour += 1
+        minute = (minute + vars.wait_for) % 60
+    tz = now.astimezone().tzinfo
+
+    time_trigger = {key:time(hour=hour, minute=minute, tzinfo=tz) for key in vars.time_trigger}
+    channel_ids = vars.channel_ids_test
     
-    hour, minute  = (int(value) for value in datetime.datetime.today().strftime("%H/%M").split("/"))
-    minute = minute + 1 if minute != 59 else 0
+    del[hour, minute, tz]
+else:
+    channel_ids = vars.channel_ids
+    time_trigger = vars.time_trigger
 
-    time_trigger = {key:{"hour": hour, "minute": minute} for key in time_trigger}
-    channel_ids = {key:channel_ids["testing"] for key in channel_ids}
-    
-    del[hour, minute]
-
-
-
-# club event reminder:
-@tasks.loop(time=datetime.time(time_trigger["club event"]["hour"], time_trigger["club event"]["minute"], tzinfo=time_zone))
-async def club_event_reminder():
-    print(f'''"Club event" task running... {datetime.datetime.now()}''')
-
-
-# game midnight reminder:
-@tasks.loop(time=datetime.time(time_trigger["midnight"]["hour"], time_trigger["midnight"]["minute"], tzinfo=pytz.timezone("Africa/Cairo")))
-async def game_midnight_reminder():
-    print(f'''"Game Midnight" task running... {datetime.datetime.now()}''')
-
-
-# midnight reminders
-@tasks.loop(time=datetime.time(time_trigger["midnight"]["hour"], time_trigger["midnight"]["minute"], tzinfo=time_zone))
-async def midnight_reminder(server):
-    print(f'''"Midnight" task running... {datetime.datetime.now()}!''')
-
-    # for headmasters (sunday)
-    if datetime.datetime.today().weekday() == 0:
-        print(f"It's {weekday[datetime.datetime.today().weekday()]}!")
-        message_channel = server.get_channel(channel_ids["headmasters"])
-        await message_channel.send("<@&1221884134121668648> Headmasters, remember to take a picture of this week's top 3 students!")
 
 
 # game reset reminder:
-@tasks.loop(time=datetime.time(time_trigger["game"]["hour"], time_trigger["game"]["minute"], tzinfo=pytz.timezone("Africa/Cairo")))
-async def game_reset_reminder():
-    print(f'''"Game Reset" task running... {datetime.datetime.now()}''')
+@tasks.loop(time=time_trigger["game_reset"])
+@get_today()
+async def game_reset_reminder(bot, today):
+    DB = bot.db
+    SERVER = bot.server
+    
+    # run cleanup of past notifications
+    notification_authors = {author for author in vars.custom_avatars.keys()}
+
+    # - delete SNAPE only on mondays
+    if today.weekday() != 0:
+        notification_authors.remove("Prof. Snape")
+    
+    # - delete DUMBLEDORE only on sundays
+    if today.weekday() != 6:
+        notification_authors.remove("Prof. Dumbledore")
+
+    channel = SERVER.get_channel(channel_ids["announcements"])
+    [await message.delete() async for message in channel.history(after=(today - timedelta(days=2))) if (message.author.name in notification_authors and "Mention: " in message.content)]
+
+    # backup database
+    if not vars.test_bot["test_tasks"]:
+        try:
+            DB.backup()
+        except Exception as error:
+            print("task error, " + str(error))
 
 
-# delete message 
-@tasks.loop(time=delete_after) #Create the task
-async def delete_message(message):
-    await message.delete()
+# morning reminder:
+@tasks.loop(time=time_trigger["morning"])
+@get_today()
+async def morning_reminder(bot, today):
+    SERVER = bot.server
+    
+    if not vars.test_bot["test_tasks"]:
+        birthdays = (await Portkeys.initialize(message_id="unarchived", birthday=datetime(year=2000, month=today.month, day=today.day), specified_columns=["user_id", "message_id", "birthday"])).get(multiple=True)
+    else:
+        birthdays = [vars.dev_user_id for _ in range(1)]
+
+    # trigger on someone's birthday
+    if birthdays:
+        await print_notification(SERVER, event_name="Birthday", date=today, variables=[birthdays])
+
+
+# weekly_cards reminder:
+@tasks.loop(time=time_trigger["weekly_cards"])
+@get_today()
+async def weekly_cards_reminder(bot, today):
+    SERVER = bot.server
+
+    # trigger on monday, wednesday and friday
+    if not vars.test_bot["test_tasks"]:
+        if today.weekday() == 0:
+            await print_notification(SERVER, event_name="Card - Matagot", date=today)
+        
+        elif today.weekday() == 2:
+            await print_notification(SERVER, event_name="Card - Book of Monsters", date=today)
+        
+        elif today.weekday() == 4:
+            await print_notification(SERVER, event_name="Card - Cornish Pixies", date=today)
+    
+    else:
+        await print_notification(SERVER, event_name="Card - Matagot", date=today)
+        await print_notification(SERVER, event_name="Card - Book of Monsters", date=today)
+        await print_notification(SERVER, event_name="Card - Cornish Pixies", date=today)
+
+
+# housecup reminder:
+@tasks.loop(time=time_trigger["housecup"])
+@get_today()
+async def housecup_reminder(bot, today):
+    SERVER = bot.server
+    
+    housecup_disciplines = await ExtraVariable.initialize(name="housecup_disciplines")
+    housecup_reset       = await ExtraVariable.initialize(name="housecup_reset")
+
+    # trigger every 2 weeks from base date
+    delta = datetime(year=today.year, month=today.month, day=today.day, tzinfo=vars.gameserver_timezone) - vars.base_housecup_date
+    if (vars.test_bot["test_tasks"] or delta.days % 14 == 0):
+        discipline = housecup_disciplines.get()[int(delta.days / 14) % 4]
+
+        await print_notification(SERVER, event_name="Housecup", variables=[discipline], date=today)
+
+        if (not vars.test_bot["test_tasks"] and housecup_disciplines.get()[3] == discipline):
+            await housecup_reset.change(to=True)
+
+    # reset to default (0, 1, 2, 3)    
+    elif (delta.days % 14 == 9 and housecup_reset.get()):
+        await housecup_disciplines.change(to=(0, 1, 2, 3))
+        await housecup_reset.change(to=False)
+
+
+# club_events reminder:
+@tasks.loop(time=time_trigger["club_events"])
+@get_today()
+async def club_events_reminder(bot, today):
+    SERVER = bot.server
+
+    # trigger every workday
+    if (vars.test_bot["test_tasks"] or today.weekday() not in [5, 6]):
+        
+        # and if variable is True
+        trigger_club_events = await ExtraVariable.initialize(name="trigger_club_events")
+        
+        if trigger_club_events.get():
+            await print_notification(SERVER, event_name="Club Events", date=today)
+        
+        # default True
+        else:
+            await trigger_club_events.change(to=True)
+    
+    # trigger every weekend
+    if (vars.test_bot["test_tasks"] or today.weekday() in [4, 6]):
+        
+        # delete the previous ones
+        if not vars.test_bot["test_tasks"]:
+            channel = SERVER.get_channel(channel_ids["announcements"])
+            [await message.delete() async for message in channel.history(after=(today - timedelta(days=2))) if (message.author.name == "Prof. Snape" and "Mention: " in message.content)]
+        
+        await print_notification(SERVER, event_name="Club Points", date=today)
+
+
+# game_midnight reminder:
+@tasks.loop(time=time_trigger["game_midnight"])
+@get_today()
+async def game_midnight_reminder(bot, today):
+    SERVER = bot.server
+
+    # trigger every 2 weeks from base date
+    delta = datetime(year=today.year, month=today.month, day=today.day) - (await ExtraVariable.initialize(name="base_date_maintenance")).get()
+    if (vars.test_bot["test_tasks"] or delta.days % 14 == 0):
+        await print_notification(SERVER, event_name="Maintenance", date=today)
+
+
+# midnight reminders
+@tasks.loop(time=time_trigger["midnight"])
+@get_today()
+async def midnight_reminder(bot, today):
+    SERVER = bot.server
+
+    # trigger on sunday (FOR STAFF ONLY!)
+    if (vars.test_bot["test_tasks"] or today.weekday() == 6):        
+        await print_notification(SERVER, event_name="Rankings", date=today)
+
+
+# user create task
+def create_a_task(timer):
+
+    @tasks.loop(hours=timer["hours"], minutes=timer["minutes"], seconds=timer["seconds"], count=2)
+    async def task_template(event_info):
+        if task_template.current_loop != 0:
+            print(f"Task executed! {event_info} {datetime.now()}")
+        else:
+            task_template.__name__ = f"task_{event_info['id']}"
+
+    return task_template

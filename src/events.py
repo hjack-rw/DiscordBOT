@@ -1,33 +1,182 @@
-from src.body import bot
-from src.functions import send_webhook, draw_infocard
-from src.variables import local_deploy, server_id, channel_ids, system_embed_color
-from src.views import WelcomeView
+from src.body       import bot
+from src.db_classes import Portkeys, WelcomeMessages
+from src.functions  import draw_infocard, print_notification
+from src.variables  import channel_ids, channel_ids_test, channel_sections_ids, test_bot
+from src.views      import WelcomeView
 
-from discord.embeds import Embed
+import traceback
 
+from asyncio  import get_event_loop
+from datetime import datetime
+from random   import randint
 
-# SETTINGS 
-test_events = True if local_deploy else False
-#// test_command = True # an overwrite
-
-
+# SETTINGS
 # for testing
-if test_events:
-    channel_ids = {key:channel_ids["testing"] for key in channel_ids}
+# test_bot["test_events"] = True # overwrite if needed
+
+if test_bot["test_events"]:
+    channel_ids = channel_ids_test
 
 
-
-# Welcoming event
+# Enter Server
 @bot.event
-async def on_member_join(new_user):
-    print("Recognised that a member called " + new_user.name + "," + f"{new_user.id}" + " joined")
+async def on_member_join(member):
+    MEMBERS_VIEW = bot.members_view
 
-    server = bot.get_guild(server_id)
-    channel = server.get_channel(channel_ids["welcome"])
-    
-    image = draw_infocard(new_user=new_user, all_members=len([member for member in server.members if not member.bot]))
+    # skip bots
+    if not member.bot:
+        SERVER = bot.server
 
-    embed = Embed(title=f"Welcome, {new_user.name}, to GatesOfPurgatory! <:hugs:1256225688403447888>",  description="Go to <id:guide> and follow the instructions :)", color=system_embed_color)
-    embed.set_image(url="attachment://card.png")    
+        image = draw_infocard(new_user=member, all_members_count=len([member for member in SERVER.members if not member.bot]))
+        view = WelcomeView(user=member, stickers=SERVER.stickers)
+
+        message = await print_notification(SERVER, event_name="Welcome", variables=[member, image, view])
+
+        if not test_bot["test_events"]:
+            await (await WelcomeMessages.initialize()).add(user_id=member.id, message_id=message.id, date=datetime.now())
     
-    await send_webhook(target_channel=channel, user_name="Prof. Hagrid", user_avatar_url="https://ostatniatawerna.pl/wp-content/cache/thumb/7c/f366d57c85cd27c_730x452.jpg", content=f"Mention: <@{new_user.id}>", embed=embed, file=image, view=WelcomeView(user=new_user, stickers=server.stickers))
+        await MEMBERS_VIEW.update_members(members=SERVER.members)
+    
+    else:
+        print(f"BOT: {member.name} joined the server!")
+
+
+# Leave Server
+@bot.event
+async def on_member_remove(member):
+    SERVER          = bot.server
+    MEMBERS_VIEW    = bot.members_view
+    USER_EXPERIENCE = bot.user_experience
+
+    await MEMBERS_VIEW.update_members(members=SERVER.members)
+    
+    if not test_bot["test_events"] and not member.bot:
+        
+        CHANNEL = SERVER.get_channel(channel_ids["portkey-arrival"])
+        if message_id := await (await Portkeys.initialize(user_id=member.id)).archive(return_empty=True):
+            
+            message = await CHANNEL.fetch_message(message_id)
+            await message.delete()
+
+        CHANNEL = SERVER.get_channel(channel_ids["welcome"])
+        if message_id := await (await WelcomeMessages.initialize()).remove(user_id=member.id):
+            
+            message = await CHANNEL.fetch_message(message_id)
+            await message.delete()
+        
+        try:
+            await USER_EXPERIENCE.archive(user_id=member.id)
+        except Exception:
+            pass
+
+
+# Post on Server
+@bot.event
+async def on_message(message):
+    SERVER             = bot.server
+    USER_EXPERIENCE    = bot.user_experience
+    USER_LAST_EXECUTED = bot.user_last_executed
+    MESSAGE_COOLDOWN   = 60.0
+    
+    # skip bots
+    if message.author.bot:
+        return
+    
+    # skip if message channel is not allowed
+    if message.channel.id != channel_ids["welcome"]:
+        category = message.channel.category
+        if not category or category.id not in [channel_sections_ids["general"], channel_sections_ids["guides"], channel_sections_ids["offtopic"]]:
+            return
+
+    # user cooldown
+    now = get_event_loop().time()
+    last_time = USER_LAST_EXECUTED.get(message.author.id, 0)
+
+    # assert cooldown
+    if now - last_time < MESSAGE_COOLDOWN:
+        return # still in cooldown
+    
+    # update cooldown
+    USER_LAST_EXECUTED[message.author.id] = now
+    
+    
+    # double points on weekend 
+    multiplier = 2 if datetime.now().weekday() in [5, 6] else 1
+
+    
+    # attachments have fixed points, capped at 5 xp
+    if (count_attachments := min(len(message.attachments), 5)) > 0:
+        base = 15 * count_attachments * multiplier
+    
+    # random xp for messages btween 15-25
+    else:
+        base = randint(15, 25) * multiplier
+
+    
+    # reward 1 additional xp per 50 characters, capped at 5 xp
+    xp_gained = base + min(len(message.content) // 50, 5)
+    
+    if not test_bot["test_events"]:
+        try:
+            await USER_EXPERIENCE.tweak(server=SERVER, member=message.author, amount=xp_gained)
+        except Exception as error:
+            print(str(error))
+
+
+# React on Server
+@bot.event
+async def on_reaction_add(reaction, user):
+    SERVER             = bot.server
+    USER_EXPERIENCE    = bot.user_experience
+    USER_LAST_REACTED  = bot.user_last_reacted
+    REACTION_COOLDOWN  = 30
+
+    # skip bots
+    if user.bot:
+        return
+
+    message = reaction.message
+
+    # skip if message channel is not allowed
+    if message.channel.id not in [channel_ids["portraits"], channel_ids["dueling-club"], channel_ids["gallery"], channel_ids["frog-choir"], channel_ids["hagrids-hut"]]:
+        return
+
+    # user cooldown    
+    now = get_event_loop().time()
+    last_time = USER_LAST_REACTED.get(user.id, 0)
+    
+    # assert cooldown
+    if now - last_time < REACTION_COOLDOWN:
+        return  # still in cooldown
+    
+    # update cooldown
+    USER_LAST_REACTED[user.id] = now
+
+    if not test_bot["test_events"]:
+        try:
+            await USER_EXPERIENCE.tweak(server=SERVER, member=user, amount=5)
+        except Exception as error:
+            print(str(error))
+
+
+# Error Handling
+@bot.event
+async def on_error(event_method, *args, **kwargs):
+    caught_error = traceback.format_exc()
+    
+    # ignore common network-related aiohttp errors
+    ignored_errors = ("ClientConnectorDNSError",
+                      "ClientOSError",
+                      "ClientConnectorError",
+                      "TimeoutError",)
+
+    if any(error in caught_error for error in ignored_errors):
+        return
+    
+    print(f"Event {event_method} error:\n{caught_error}")
+
+
+# Disconnect
+@bot.event
+async def on_disconnect():
+    print("Bot disconnected — waiting to reconnect...")

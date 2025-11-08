@@ -1,5 +1,8 @@
+aiosqlite
+cutie
 discord.py
 pillow
+pip-system-certs
 python-dotenv
-pytz
+tzdata
 requests
