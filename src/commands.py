@@ -425,10 +425,12 @@ class GeneralCommands(Group):
 
             all_picked[questions[question_idx]["variable"]] = picked
 
-        # TODO! insert without defaults if provided
+        # insert a new record
         if is_archived is None:
-            await (await ExperienceInfo.initialize()).add(user_id=member.id, pet_ashwinder=not bool({role.name for role in getattr(member, "roles", [])} & {vars.club_name_short, "guest"}))
-            await (await ExperienceInfo.initialize(user_id=member.id)).change(**all_picked)
+            await (await ExperienceInfo.initialize()).add(user_id=member.id, 
+                                                          pet_ashwinder=not bool({role.name for role in getattr(member, "roles", [])} & {vars.club_name_short, "guest"}),
+                                                          defaults=all_picked)
+        # otherwise modify record
         else:
             await info.change(**all_picked)
 

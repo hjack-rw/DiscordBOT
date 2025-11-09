@@ -27,7 +27,7 @@ class Experience(Database):
         if is_new:
             await self._insert(new_record=tuple(experience.values()), custom_id=user_id)
         else:
-            await self._update(conditions=self._get_conditions(id=user_id), new_values=experience, id=user_id)
+            await self._update(conditions=self._get_conditions(custom_id=user_id), new_values=experience, custom_id=user_id)
         
         return experience["xp"]
 
@@ -36,7 +36,7 @@ class Experience(Database):
     @sql_record_exisits_validator()
     async def unarchive(self, user_id):
         try:
-            await self._update(conditions=self._get_conditions(id=user_id), new_values={"archived":False}, id=user_id)
+            await self._update(conditions=self._get_conditions(custom_id=user_id), new_values={"archived":False}, custom_id=user_id)
         except Exception:
             pass
 
@@ -45,7 +45,7 @@ class Experience(Database):
     @sql_record_exisits_validator()
     async def archive(self, user_id):
         try:
-            await self._update(conditions=self._get_conditions(id=user_id), new_values={"archived":True}, id=user_id)
+            await self._update(conditions=self._get_conditions(custom_id=user_id), new_values={"archived":True}, custom_id=user_id)
         except Exception:
             pass
 
@@ -53,7 +53,7 @@ class Experience(Database):
     @sql_full_table_validator
     @sql_record_exisits_validator(not_archived=True)
     async def reset(self, user_id):
-        await self._update(conditions=self._get_conditions(id=user_id), new_values={"xp":0, "level":0, "progress":0.0}, id=user_id)
+        await self._update(conditions=self._get_conditions(custom_id=user_id), new_values={"xp":0, "level":0, "progress":0.0}, custom_id=user_id)
 
     # return Experience
     def get(self, multiple=True):
@@ -79,8 +79,8 @@ class ExperienceInfo(Database):
     
     # add ExperienceInfo
     @sql_full_table_validator
-    async def add(self, user_id, pet_ashwinder):
-        await self._insert(new_record=(pet_ashwinder,), custom_id=user_id)
+    async def add(self, user_id, pet_ashwinder, defaults=None):
+        await self._insert(new_record=(pet_ashwinder,), custom_id=user_id, defaults=defaults)
 
     # change ExperienceInfo
     @sql_only_one_validator
@@ -137,7 +137,7 @@ class Images(Database):
     @sql_full_table_validator
     async def add(self, filename, image, replace=False):
         if replace:
-            await self._update(conditions=self._get_conditions(id=f"'{filename}'"), new_values={"data":image}, id=filename)
+            await self._update(conditions=self._get_conditions(custom_id=f"'{filename}'"), new_values={"data":image}, custom_id=filename)
         else:
             await self._insert(new_record=(image,), custom_id=filename)
 
@@ -210,7 +210,7 @@ class WelcomeMessages(Database):
     @sql_full_table_validator
     async def remove(self, user_id):
         try:
-            if deleted_record := await self._delete(conditions=self._get_conditions(id=user_id), id=user_id):
+            if deleted_record := await self._delete(conditions=self._get_conditions(custom_id=user_id), id=user_id):
                 return self._get_specific_value_from_raw_data(deleted_record, "message_id")[0]
         except Exception:
             return None
