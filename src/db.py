@@ -220,10 +220,12 @@ def sql_create_linked_record(func):
 # Clauses
 ############################################################################################################
 
-def apply_selected_columns(skip_when_default=False):
+def apply_selected_columns(is_insert=False):
     """Apply correct formatting for selected columns"""
 
     def run(func):
+        
+        # standard apply: handle shortened or extended mode
         def apply(self, *args, **kwargs):
             
             if getattr(self, "is_shortened", False) or getattr(self, "extended", False):
@@ -232,23 +234,20 @@ def apply_selected_columns(skip_when_default=False):
                 kwargs["columns"] = "*"
             return func(self, *args, **kwargs)
 
-        def apply_skip_when_default(self, *args, **kwargs):
+        # special apply for INSERT
+        def apply_for_insert(self, *args, **kwargs):
             
-            custom_id = kwargs.pop("custom_id", None)
+            kwargs["required_columns"] = sum(1 for _,meta in self.columns.items() if not meta.get('is_pk') and meta.get('default') is None)
 
-            if custom_id:
+            kwargs.setdefault("defaults", {})
+
+            if custom_id := kwargs.pop("custom_id", None):
                 kwargs["custom_id"] = self._return_value(custom_id, type(custom_id))
-                
-                kwargs["columns"] = filter(lambda item: isinstance(item[1], dict) and not item[1]["default"], self.columns.items())
-            
-            # else autoiterate
-            else:
-                kwargs["columns"] = filter(lambda item: isinstance(item[1], dict) and not item[1]["default"] and not item[1]["is_pk"], self.columns.items())
-            
+
             return func(self, *args, **kwargs)
 
-        if skip_when_default:
-            return apply_skip_when_default
+        if is_insert:
+            return apply_for_insert
         return apply
     return run
 
@@ -305,29 +304,76 @@ def apply_order(func):
     
     return apply
 
-def apply_default_values(self, new_record):
-    """Apply default values to a new record before INSERT"""
+async def get_sql_values(self, required_columns, defaults, new_record, custom_id=None):
+    """Get sql values to a new record (along side columns and id of the new record) before INSERT"""
     
-    idx, new_record_with_defaults = 0, []
-    for column, meta in self.columns.items():
-        if not isinstance(meta, dict):
-            continue
-            
-        if meta["is_pk"]:
-            continue
-            
-        default = meta["default"]
-        new_record_with_defaults.append(None if (default == 'NULL') else default if (default is not None) else new_record[idx])
-
-        if default is not None:
-            continue
-
-        idx += 1
+    # if autoitterate or the id is given
+    if custom_id is None:
+        id = (await self._get_last_id()) + 1
+        sql_values = []
+    else:
+        id = custom_id
+        sql_values = [id]  # prepend custom_id to the SQL values
     
-    return new_record_with_defaults
+    try:
 
-def get_update_clause(self, new_values, id=None):
+        # protect from creating duplicates
+        if id in self.raw_data:
+            raise Exception(f"'{id}' is already in the database")
+        
+        # determine correct record length
+        if len(new_record) != required_columns:
+            raise Exception("incorrect number of values for insertion")
+
+        new_record = iter(new_record)
+
+        columns_to_insert, entire_row = [], []
+        for column, meta in self.columns.items():
+            
+            # skip primary keys, but include in columns to insert (only when custom_id)
+            if meta.get("is_pk"):
+                if custom_id is not None:
+                    columns_to_insert.append(column)
+                continue
+            
+            # get default value from provided defaults
+            elif column in defaults:
+                next_value = defaults[column]
+
+            # get default value from table meta
+            elif meta.get("default") is not None:
+                next_value = None if meta["default"] == Filter.NONE else meta["default"]  # normalize 'NULL' to None
+                entire_row.append(next_value)
+                continue
+            
+            # next value from new_record
+            else:
+                next_value = next(new_record)
+            
+            columns_to_insert.append(column)
+            next_value = self._return_value(next_value, type(next_value))  # convert value to the DB format
+
+            entire_row.append(next_value)
+            sql_values.append(next_value)
+
+        entire_row = tuple(entire_row)
+        
+        # check if new_record is a duplicate (if no custom_id)
+        if custom_id is None and entire_row in self.raw_data.values():
+            raise Exception("is already in the database")
+        
+        # add new record to the loaded DB
+        self.raw_data[id] = entire_row
+        
+        return columns_to_insert, sql_values, id
+
+    except Exception as exception:
+        raise Exception(f"{module_name} INSERT error: {new_record} {exception}")
+
+def get_update_clause(self, new_values, custom_id=None):
     """Get update clause"""
+
+    id = custom_id
 
     try:
         # get the only loaded record
@@ -360,22 +406,26 @@ def get_update_clause(self, new_values, id=None):
             # get the old value
             old_value = self._get_value(record[column_id], self._get_type_from_column(value_type))
 
+            # protect from None if not_null
+            if not_null and value is None:
+                raise Exception(f"data cannot be set to NULL for column '{column}'")
+            
             # protect from mismatched datatypes (except None)
-            if not_null and value is not None:
-                if type(old_value) != type(value):
+            elif value is not None:
+                if old_value is not None and type(old_value) != type(value):
                     raise Exception(f"datatype mismatch for column '{column}'")
                 if isinstance(old_value, permutation) and not value.check():
                     raise Exception(f"invalid permutation object for column '{column}'")
 
-            # convert to db value
+            # convert to DB value
             change = self._return_value(value, type(value))
             sql_values.append(change)
 
             update_clause.append(f"{column.upper()} = ?")
 
-            # convert to db value
+            # convert to DB value
             record[column_id] = change
-        return ", ".join(update_clause), id, record, sql_values
+        return ", ".join(update_clause), record, sql_values, id
     
     except Exception as exception:
         raise Exception(f"{module_name} UPDATE clause error: {str(exception)}")
@@ -578,10 +628,10 @@ class Database():
             raise Exception(f"{module_name} SELECT error! faulty command:\n'{command}'\n{str(error)}")
 
     @apply_conditions()
-    async def _update(self, conditions, new_values, id=None):
+    async def _update(self, conditions, new_values, custom_id=None):
         """Command UPDATE"""
 
-        update, id, record, sql_values = get_update_clause(self, new_values, id)
+        update, record, sql_values, id = get_update_clause(self, new_values, custom_id)
 
         # execute query, UPDATE
         try:
@@ -593,44 +643,30 @@ class Database():
         # replace the changed value in record
         self.raw_data[id] = tuple(record)
 
-    @apply_selected_columns(skip_when_default=True)
-    async def _insert(self, columns, new_record, custom_id=None):
+    @apply_selected_columns(is_insert=True)
+    async def _insert(self, required_columns, defaults, new_record, custom_id=None):
         """Command INSERT"""
         
+        id = None
+        
         # get a new record with default values
-        new_record_with_defaults = apply_default_values(self, new_record)
+        columns, sql_values, id = await get_sql_values(self, required_columns, defaults, new_record, custom_id)
 
-        # protect from creating duplicates
-        if custom_id and custom_id in self.raw_data:
-            raise IdAlreadyExistsError(f"{module_name} INSERT error: '{custom_id}' is already in the database")
-        
-        if new_record_with_defaults in self.raw_data.values():
-            raise Exception(f"{module_name} INSERT error: {new_record} is already in the database")
-
-        # if autoitterate or the id is given
-        if custom_id is None:
-            id = (await self._get_last_id()) + 1
-            sql_values, placeholders = [], []
-        else:
-            id = custom_id
-            sql_values, placeholders = [custom_id], ["?"] # prepend custom_id to the SQL values
-
-        # prepare the record to be inserted
-        for value in new_record:
-            sql_values.append(self._return_value(value, type(value))) # convert value to the DB format
-            placeholders.append("?")
-        
-        columns = ", ".join([column for column,_ in columns]).upper()
-        values  = ", ".join(placeholders)
+        # prepare the record to be inserted        
+        columns = ", ".join(columns).upper()
+        values  = ", ".join(["?" for _ in sql_values])
 
         # execute query, INSERT
         try:
             command = f"INSERT INTO {self.table} ({columns}) VALUES ({values});"
             await self.run_query(query=command, params=sql_values)
         except Exception as error:
+            
+            # remove temporarily added record from loaded DB
+            if id:
+                del self.raw_data[id]
+            
             raise Exception(f"{module_name} INSERT error: failed to add to the database! values:\n'{sql_values}'\n{str(error)}")
-
-        self.raw_data[id] = tuple(new_record_with_defaults)
 
     @apply_conditions()
     async def _delete(self, conditions, id):
@@ -693,7 +729,7 @@ class Database():
             all_columns[column_name] = {"is_pk":       bool(is_pk),
                                         "type":        types_dict.pop(column_name, types_dict[type]),
                                         "not_null":    bool(not_null),
-                                        "default":     default,
+                                        "default":     self._parse_sqlite_default(default),
                                         "extended":    idx >= len(columns)}
         
         return all_columns
@@ -744,6 +780,22 @@ class Database():
             else:
                 return value.replace("'", "`") if direct_string else "'" + value.replace("'", "`") + "'"
         return value
+
+    def _parse_sqlite_default(self, value: str):
+        """ Convert DB PRAGMA defult value """
+
+        if value is None:
+            return None
+        value = value.strip("'\"")  # remove wrapping quotes if any
+        if value.upper() in ('NULL', ''):
+            return Filter.NONE  # placeholder for NULL
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return float(value)
+            except ValueError:
+                return value
 
 # Database structure
 ############################################################################################################
@@ -971,17 +1023,17 @@ class Database():
 
     def _get_imported_columns(self, columns=None):
         columns = columns if columns is not None else getattr(self, "columns", {})
-        return [key for key,value in columns.items() if isinstance(value, dict)]
+        return [name for name,meta in columns.items() if isinstance(meta, dict)]
     
     def _get_extended_columns(self):
-        return [key for key,value in self.columns.items() if isinstance(value, dict) and value["extended"]]
+        return [name for name,meta in self.columns.items() if isinstance(meta, dict) and meta["extended"]]
 
     async def _get_last_id(self):
         return int(next(iter((await self._select(table="sqlite_sequence", conditions=["NAME" + Filter.STANDARD.value.replace("*", f"'{self.table}'")])).values()))[0])
     
     # if with @sql_full_table_validator but need id
-    def _get_conditions(self, id):
-        return [self._get_id_column().upper() + Filter.STANDARD.value.replace("*", str(id))]
+    def _get_conditions(self, custom_id):
+        return [self._get_id_column().upper() + Filter.STANDARD.value.replace("*", str(custom_id))]
     
     @staticmethod
     def _get_filename_short(filename):

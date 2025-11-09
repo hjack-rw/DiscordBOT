@@ -149,7 +149,7 @@ form_answers = ["🤺 Solo Dueling",
 # Complete list at:
 # https://harrypotter.fandom.com/wiki/List_of_creatures
 pets = {
-    "0":  {"name": "Flobberworm",                "url": "https://www.hp-lexicon.org/wp-content/uploads/2017/03/flobberworm.jpg"},                                                             #100 xp to finish
+    "0":  {"name": "Flobberworm",                "url": "https://files.catbox.moe/k2qcmw.jpg"},                                                                                               #100 xp to finish
     "1":  {"name": "Manticore",                  "url": "https://media.harrypotterfanzone.com/baby-manticore.jpg"},                                                                           #255
     "2a": {"name": "Cornish Pixie",              "url": "attachment://cornish_pixie.png"},                                                                                                    #475
     "2b": {"name": "Lobalug",                    "url": "https://static.wikia.nocookie.net/harrypotter/images/1/1a/Lobalug.png/revision/latest?cb=20171226234304"},
