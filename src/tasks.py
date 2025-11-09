@@ -3,6 +3,7 @@ import src.variables as vars
 from src.db_classes import ExtraVariable, Portkeys
 from src.functions  import get_today, print_notification
 
+from calendar import isleap
 from datetime import datetime, time, timedelta
 
 from discord.ext import tasks
@@ -71,6 +72,10 @@ async def morning_reminder(bot, today):
     
     if not vars.test_bot["test_tasks"]:
         birthdays = (await Portkeys.initialize(message_id="unarchived", birthday=datetime(year=2000, month=today.month, day=today.day), specified_columns=["user_id", "message_id", "birthday"])).get(multiple=True)
+    
+        # if year is not leap, check for Feb 29 birthdays on Feb 28
+        if (today.month == 2 and today.day == 28) and not isleap(today.year):
+            birthdays += (await Portkeys.initialize(message_id="unarchived", birthday=datetime(year=2000, month=2, day=29), specified_columns=["user_id", "message_id", "birthday"])).get(multiple=True)
     else:
         birthdays = [vars.dev_user_id for _ in range(1)]
 
