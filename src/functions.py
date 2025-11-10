@@ -71,42 +71,42 @@ def standard_response(silent: bool=False):
     def run(func: Callable[P, Awaitable[R]]):
         @wraps(func)
         async def response(*args: P.args, **kwargs: P.kwargs) -> R:
-            if {"interaction", "message"} & kwargs.keys():
-                interaction = kwargs.get("interaction", None)
-                message     = kwargs.get("message", None)
-            else:
+            interaction = kwargs.get("interaction", None)
+            message     = kwargs.get("message", None)
+            
+            if interaction is None and message is None:
                 output = {Group: None, Interaction: None, Message: None}
 
                 for arg in args:
-                    for expected_type in output.keys():
+                    for expected_type in output:
                         if isinstance(arg, expected_type) and output[expected_type] is None:
                             output[expected_type] = arg
                             break  # stop checking once matched
 
-                self, interaction, message  = output[Group], output[Interaction], output[Message]
+                _, interaction, message  = output[Group], output[Interaction], output[Message]
             
-            text = "A wizard must show patience... please, wait for the command to finish!"
-
             if not silent:
+                wait_text = "A wizard must show patience... please, wait for the command to finish!"
+
                 if interaction:
-                    await safe_handle_response(interaction, message=text)
+                    await safe_handle_response(interaction, message=wait_text)
                 elif message:
-                    await message.channel.send(text, delete_after=10)
+                    await message.channel.send(wait_text, delete_after=10)
 
             try:
                 return await func(*args, **kwargs)
             except Exception as error:
-                text = f"Something went very wrong here... {error}!"
+                error_text = f"Something went very wrong here... {error}!"
                 
                 try:
                     if interaction:
-                        return await safe_handle_response(interaction, message=text)
+                        return await safe_handle_response(interaction, message=error_text)
                     elif message:
-                        return await message.channel.send(text, delete_after=10)
+                        return await message.channel.send(error_text, delete_after=10)
                 except Exception as followup_error:
                     print(f"Failed to send error follow-up: {followup_error}")
                 
-                print(text)
+                print(error_text)
         
         return response
     return run
