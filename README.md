@@ -2,8 +2,6 @@
 
 A Harry Potter themed Discord bot for community servers. Built with discord.py, featuring a house cup scoring system, XP-based leaderboard with custom-generated player cards, and a pet collection system.
 
-![Leaderboard](screenshots/leaderboard.png)
-
 ## Features
 
 ### House Cup
@@ -12,7 +10,7 @@ A Harry Potter themed Discord bot for community servers. Built with discord.py, 
 
 ### XP & Leaderboard
 - Per-message XP tracking with level progression
-- Visual leaderboard cards generated with Pillow — chocolate frog card aesthetic with house-color borders, pet companions, and XP progress bars
+- Visual leaderboard cards generated with Pillow — decoratively framed avatars with house-color shields, pet companions, and XP progress bars
 - Admin commands: add/subtract/set XP, reset, archive, customize card display name
 
 ### Pet System
@@ -64,5 +62,24 @@ src/
 ├── db.py            # Database layer
 ├── db_classes.py    # ORM-style model classes
 ├── functions.py     # Image generation, leaderboard, webhooks
-└── image_module/    # Assets: fonts, templates, house crests
+└── image_module/    # Fonts only (image assets provided separately — see below)
 ```
+
+## Assets & disclaimer
+
+This is a **non-commercial, fan-made** project. It is not affiliated with, endorsed, sponsored, or approved by Warner Bros., J.K. Rowling, or any rights holder. "Harry Potter" and all related names and marks are trademarks of their respective owners, used here only descriptively in a non-commercial context.
+
+**Image assets are blank placeholders.** To avoid redistributing themed artwork, the repo ships empty, correctly-sized transparent PNGs instead of art — the bot runs out-of-box, and you replace them with your own. Files in `src/image_module/`:
+
+| File | Size |
+| --- | --- |
+| `card_template.png` | 1024×266 |
+| `leaderboard_template.png` | 1600×400 |
+| `leaderboard_bar.png` | 1600×400 |
+| `leaderboard_frogcard_template.png` | 246×246 |
+| `leaderboard_bar_frog.png` | 55×55 |
+| `houses/gryffindor.png` · `hufflepuff.png` · `ravenclaw.png` · `slytherin.png` | 45×56 |
+
+Fonts **are** included and freely licensed:
+- `RUNES.ttf` — [MedievalSharp](https://fonts.google.com/specimen/MedievalSharp), SIL Open Font License (see `image_module/OFL-MedievalSharp.txt`)
+- `MAGIC.ttf` — Magic School One (FontMesa), free for personal and commercial use
